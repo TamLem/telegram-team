@@ -35,6 +35,11 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
     headers: { "X-User-Id": apiUser.id },
   });
 
+  if (!teamsRes.ok) {
+    await ctx.reply("Something went wrong. Please try again.");
+    return;
+  }
+
   const { teams } = (await teamsRes.json()) as {
     teams: Array<{ id: string; name: string; role: string }>;
   };

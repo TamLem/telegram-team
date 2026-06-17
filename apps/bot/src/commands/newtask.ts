@@ -17,6 +17,10 @@ async function syncUser(user: { id: number; first_name: string; last_name?: stri
       telegramUsername: user.username ?? null,
     }),
   });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `Failed to sync user: ${res.status}`);
+  }
   const { user: apiUser } = (await res.json()) as { user: { id: string } };
   return apiUser;
 }
