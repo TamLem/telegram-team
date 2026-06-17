@@ -1,33 +1,18 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
-import fs from "node:fs";
 import { fileURLToPath } from "node:url";
+import { loadRootEnv, getEnv } from "@telegram-team/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 
+loadRootEnv();
+
+const apiPort = getEnv("API_PORT", getEnv("PORT", "3001"));
+const miniappPort = getEnv("MINIAPP_PORT", getEnv("PORT", "3002"));
+const botPort = getEnv("BOT_PORT", getEnv("PORT", "3000"));
+
 const env = { ...process.env };
-
-// Load root .env.local if it exists
-const envLocalPath = path.join(root, ".env.local");
-if (fs.existsSync(envLocalPath)) {
-  const content = fs.readFileSync(envLocalPath, "utf-8");
-  for (const line of content.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eqIndex = trimmed.indexOf("=");
-    if (eqIndex === -1) continue;
-    const key = trimmed.slice(0, eqIndex).trim();
-    const value = trimmed.slice(eqIndex + 1).trim();
-    if (key && !env[key]) {
-      env[key] = value;
-    }
-  }
-}
-
-const apiPort = env.API_PORT ?? env.PORT ?? "3001";
-const miniappPort = env.MINIAPP_PORT ?? env.PORT ?? "3002";
-const botPort = env.BOT_PORT ?? env.PORT ?? "3000";
 
 const tsxBin = path.join(
   root,
@@ -69,7 +54,6 @@ function shutdown(children: ChildProcess[]) {
   for (const child of children) {
     child.kill("SIGTERM");
   }
-  // Force kill after 3s
   setTimeout(() => {
     for (const child of children) {
       if (child.exitCode === null) child.kill("SIGKILL");
@@ -89,7 +73,11 @@ async function main() {
 
   // 1. Start API
   console.log(`[api] starting on port ${apiPort}...`);
-  children.push(run("api", ["apps/api/src/index.ts"]));
+  children.push(
+    run("api", ["apps/api/src/index.ts"], {
+      PORT: apiPort,
+    })
+  );
   await sleep(2000);
 
   // 2. Start Mini App
@@ -117,7 +105,8 @@ async function main() {
     console.log("[tunnel] skipped (--no-tunnel)\n");
   }
 
-  const miniAppBaseUrl = tunnelUrl ?? env.MINIAPP_BASE_URL ?? `http://localhost:${miniappPort}`;
+  const miniAppBaseUrl =
+    tunnelUrl ?? env.MINIAPP_BASE_URL ?? `http://localhost:${miniappPort}`;
 
   // 4. Start Bot
   const botMode = env.BOT_UPDATE_MODE ?? "polling";
@@ -126,7 +115,7 @@ async function main() {
     run("bot", ["apps/bot/src/index.ts"], {
       MINIAPP_BASE_URL: miniAppBaseUrl,
       BOT_UPDATE_MODE: botMode,
-      PORT: env.BOT_PORT ?? "3000",
+      PORT: botPort,
     })
   );
 
@@ -151,7 +140,6 @@ function startCloudflareTunnel(
 
     tunnel.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
-      // cloudflared logs to stderr
       const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
       if (match && !resolved) {
         resolved = true;
@@ -166,7 +154,6 @@ function startCloudflareTunnel(
       }
     });
 
-    // Timeout after 30s
     setTimeout(() => {
       if (!resolved) {
         reject(new Error("cloudflared: timed out waiting for tunnel URL"));
