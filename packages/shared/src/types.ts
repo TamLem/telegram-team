@@ -1,19 +1,22 @@
-import { TaskStatus, Priority, TeamRole } from "./enums.js";
-
 export interface User {
   id: string;
-  telegramId: number;
-  username: string | null;
+  telegramUserId: number;
+  telegramUsername: string | null;
   firstName: string;
   lastName: string | null;
   createdAt: string;
+  updatedAt: string;
+  lastSeenAt: string;
 }
 
 export interface Team {
   id: string;
   name: string;
-  ownerId: string;
+  slug: string;
+  inviteCode: string;
+  createdByUserId: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface TeamMember {
@@ -21,7 +24,19 @@ export interface TeamMember {
   teamId: string;
   userId: string;
   role: string;
-  joinedAt: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TeamJoinRequest {
+  id: string;
+  teamId: string;
+  userId: string;
+  status: string;
+  requestedAt: string;
+  reviewedAt: string | null;
+  reviewedByUserId: string | null;
 }
 
 export interface Task {
@@ -54,6 +69,6 @@ export interface TaskEvent {
   createdAt: string;
 }
 
-export type TaskStatusType = (typeof TaskStatus)[keyof typeof TaskStatus];
-export type PriorityType = (typeof Priority)[keyof typeof Priority];
-export type TeamRoleType = (typeof TeamRole)[keyof typeof TeamRole];
+export type TaskStatusType = (typeof import("./enums.js").TaskStatus)[keyof typeof import("./enums.js").TaskStatus];
+export type PriorityType = (typeof import("./enums.js").Priority)[keyof typeof import("./enums.js").Priority];
+export type TeamRoleType = (typeof import("./enums.js").TeamRole)[keyof typeof import("./enums.js").TeamRole];

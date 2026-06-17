@@ -1,9 +1,52 @@
 import type { BotContext } from "@telegram-team/bot-engine";
+import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
-import { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `API error ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function syncUser(user: { id: number; first_name: string; last_name?: string; username?: string }) {
+  const { user: apiUser } = await apiFetch<{ user: { id: string } }>(
+    `/api/users/telegram/${user.id}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        telegramUserId: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name ?? null,
+        telegramUsername: user.username ?? null,
+      }),
+    }
+  );
+  return apiUser;
+}
+
+async function getActiveTeams(userId: string) {
+  try {
+    const { teams } = await apiFetch<{ teams: Array<{ id: string; name: string; inviteCode: string; role: string }> }>(
+      `/api/me/teams`,
+      { headers: { "X-User-Id": userId } }
+    );
+    return teams;
+  } catch {
+    return [];
+  }
+}
 
 export async function newTaskCommand(ctx: BotContext): Promise<void> {
   const args = ctx.getState<string>("args");
@@ -16,43 +59,34 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
   }
 
   const title = args.trim();
+  const from = ctx.from;
+  if (!from) return;
 
-  const user = ctx.from;
-  if (!user) return;
+  const apiUser = await syncUser(from);
 
-  // Ensure user exists in the API by upserting
-  const userRes = await fetch(`${API_BASE_URL}/api/users/telegram/${user.id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      telegramId: user.id,
-      firstName: user.first_name,
-      lastName: user.last_name ?? null,
-      username: user.username ?? null,
-    }),
-  });
+  const teams = await getActiveTeams(apiUser.id);
 
-  const userData = (await userRes.json()) as { user: { id: string } };
-
-  // Create the task
-  const taskRes = await fetch(`${API_BASE_URL}/api/tasks`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      title,
-      createdById: userData.user.id,
-    }),
-  });
-
-  if (!taskRes.ok) {
-    const err = (await taskRes.json()) as { error: string };
-    await ctx.reply(`Failed to create task: ${err.error}`);
+  if (teams.length === 0) {
+    await ctx.reply(
+      "You need to join or create a team first. Use /start to get started."
+    );
     return;
   }
 
-  const { task } = (await taskRes.json()) as {
-    task: { id: string; title: string; status: string; priority: string };
-  };
+  const activeTeamId = ctx.getState<string>("activeTeamId") ?? teams[0].id;
+  ctx.setState("activeTeamId", activeTeamId);
+
+  const { task } = await apiFetch<{ task: { id: string; title: string; status: string; priority: string } }>(
+    "/api/tasks",
+    {
+      method: "POST",
+      headers: { "X-User-Id": apiUser.id },
+      body: JSON.stringify({
+        title,
+        teamId: activeTeamId,
+      }),
+    }
+  );
 
   const taskUrl = `${MINIAPP_BASE_URL}/app/tasks/${task.id}`;
 
@@ -78,10 +112,7 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
     inline_keyboard: [
       [
         { text: "View Task", url: taskUrl },
-        {
-          text: "Mark Done",
-          callback_data: `task:done:${task.id}`,
-        },
+        { text: "Mark Done", callback_data: `task:done:${task.id}` },
       ],
     ],
   };

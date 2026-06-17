@@ -140,7 +140,7 @@ function startCloudflareTunnel(
 
     tunnel.stderr.on("data", (data: Buffer) => {
       const text = data.toString();
-      const match = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/);
+      const match = text.match(/https:\/\/[a-z0-9]+-[a-z0-9-]+\.trycloudflare\.com/);
       if (match && !resolved) {
         resolved = true;
         resolve(match[0]);

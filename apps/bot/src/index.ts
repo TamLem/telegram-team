@@ -12,6 +12,7 @@ import { newTaskCommand } from "./commands/newtask.js";
 import { myTasksCommand } from "./commands/mytasks.js";
 import { boardCommand } from "./commands/board.js";
 import { taskCallback } from "./callbacks/task.js";
+import { onboardingCallback, onboardingMessageHandler } from "./callbacks/onboarding.js";
 import { PollingSource } from "./updateSources/polling.js";
 import { createWebhookApp } from "./updateSources/webhook.js";
 
@@ -30,7 +31,10 @@ bot.command("/newtask", newTaskCommand);
 bot.command("/mytasks", myTasksCommand);
 bot.command("/board", boardCommand);
 
+bot.callback(/^onboard:/, onboardingCallback);
 bot.callback(/^task:/, taskCallback);
+
+bot.message(onboardingMessageHandler);
 
 bot.onError(async (error, ctx) => {
   console.error("[bot] error:", error.message);
@@ -50,7 +54,6 @@ async function main() {
     const dropPending =
       process.env.DROP_PENDING_UPDATES === "true";
 
-    // Handle graceful shutdown
     process.on("SIGINT", () => polling.stop());
     process.on("SIGTERM", () => polling.stop());
 

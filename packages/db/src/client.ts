@@ -23,18 +23,23 @@ function findWorkspaceRoot(startDir: string): string {
 const DDL = `
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  telegram_id INTEGER NOT NULL UNIQUE,
-  username TEXT,
+  telegram_user_id INTEGER NOT NULL UNIQUE,
+  telegram_username TEXT,
   first_name TEXT NOT NULL,
   last_name TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS teams (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  owner_id TEXT NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  slug TEXT NOT NULL UNIQUE,
+  invite_code TEXT NOT NULL UNIQUE,
+  created_by_user_id TEXT NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS team_members (
@@ -42,7 +47,19 @@ CREATE TABLE IF NOT EXISTS team_members (
   team_id TEXT NOT NULL REFERENCES teams(id),
   user_id TEXT NOT NULL REFERENCES users(id),
   role TEXT NOT NULL DEFAULT 'member',
-  joined_at TEXT NOT NULL DEFAULT (datetime('now'))
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS team_join_requests (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  user_id TEXT NOT NULL REFERENCES users(id),
+  status TEXT NOT NULL DEFAULT 'pending',
+  requested_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reviewed_at TEXT,
+  reviewed_by_user_id TEXT REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -74,6 +91,10 @@ CREATE TABLE IF NOT EXISTS task_events (
   data TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_join_requests_active_pending
+  ON team_join_requests(team_id, user_id)
+  WHERE status = 'pending';
 `;
 
 function migrateDb(sqlite: Database.Database): void {

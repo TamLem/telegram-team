@@ -1,74 +1,65 @@
 import { Hono } from "hono";
-import { getDb } from "@telegram-team/db";
-import { users } from "@telegram-team/db";
-import { eq } from "drizzle-orm";
-import { generateId } from "@telegram-team/shared";
+import { findOrCreateTelegramUser, getUserById, getUserByTelegramId } from "../services/users.service.js";
+import { getTeamMembers, getUserActiveMemberships, getUserActiveTeams } from "../services/membership.service.js";
 
 export const usersRouter = new Hono();
 
-// Upsert user by Telegram ID (used by bot)
-usersRouter.put("/users/telegram/:telegramId", async (c) => {
-  const telegramId = parseInt(c.req.param("telegramId"));
-  const body = await c.req.json<{
-    firstName: string;
-    lastName?: string | null;
-    username?: string | null;
-  }>();
+function getUserId(c: any): string {
+  return c.get("apiUser")?.id ?? c.req.header("X-User-Id") ?? "";
+}
 
-  const db = getDb();
-
-  // Check if user exists
-  const [existing] = await db
-    .select()
-    .from(users)
-    .where(eq(users.telegramId, telegramId))
-    .limit(1);
-
-  if (existing) {
-    // Update existing user
-    const [updated] = await db
-      .update(users)
-      .set({
-        firstName: body.firstName,
-        lastName: body.lastName ?? null,
-        username: body.username ?? null,
-      })
-      .where(eq(users.id, existing.id))
-      .returning();
-
-    return c.json({ user: updated });
+usersRouter.get("/me", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
   }
 
-  // Create new user
-  const id = generateId();
-  const [user] = await db
-    .insert(users)
-    .values({
-      id,
-      telegramId,
-      firstName: body.firstName,
-      lastName: body.lastName ?? null,
-      username: body.username ?? null,
-    })
-    .returning();
-
-  return c.json({ user }, 201);
-});
-
-// Get user by Telegram ID
-usersRouter.get("/users/telegram/:telegramId", async (c) => {
-  const telegramId = parseInt(c.req.param("telegramId"));
-  const db = getDb();
-
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.telegramId, telegramId))
-    .limit(1);
-
+  const user = await getUserById(userId);
   if (!user) {
     return c.json({ error: "User not found" }, 404);
   }
 
+  return c.json({ user });
+});
+
+usersRouter.get("/me/teams", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const memberships = await getUserActiveTeams(userId);
+  const teams = memberships.map((m) => ({
+    ...m.team,
+    role: m.role,
+  }));
+
+  return c.json({ teams });
+});
+
+usersRouter.put("/users/telegram/:telegramUserId", async (c) => {
+  const telegramUserId = parseInt(c.req.param("telegramUserId"));
+  const body = await c.req.json<{
+    firstName: string;
+    lastName?: string | null;
+    telegramUsername?: string | null;
+  }>();
+
+  const user = await findOrCreateTelegramUser({
+    telegramUserId,
+    firstName: body.firstName,
+    lastName: body.lastName ?? null,
+    telegramUsername: body.telegramUsername ?? null,
+  });
+
+  return c.json({ user });
+});
+
+usersRouter.get("/users/telegram/:telegramUserId", async (c) => {
+  const telegramUserId = parseInt(c.req.param("telegramUserId"));
+  const user = await getUserByTelegramId(telegramUserId);
+  if (!user) {
+    return c.json({ error: "User not found" }, 404);
+  }
   return c.json({ user });
 });

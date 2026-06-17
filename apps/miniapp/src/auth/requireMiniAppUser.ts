@@ -1,10 +1,12 @@
 import type { MiddlewareHandler } from "hono";
 import { validateTelegramInitData, type TelegramUser } from "./validateTelegramInitData.js";
-import { getOrCreateUser } from "../services/apiClient.js";
+import { getOrCreateUser, getUserTeams } from "../services/apiClient.js";
 
 export interface AppVariables {
   telegramUser: TelegramUser;
   apiUser: { id: string };
+  hasTeam: boolean;
+  teams: Array<{ id: string; name: string; role: string }>;
 }
 
 export function requireMiniAppUser(): MiddlewareHandler<{
@@ -35,8 +37,19 @@ export function requireMiniAppUser(): MiddlewareHandler<{
           username: "dev_user",
         });
         c.set("apiUser", { id: apiUser.id });
+
+        try {
+          const teams = await getUserTeams(apiUser.id);
+          c.set("teams", teams);
+          c.set("hasTeam", teams.length > 0);
+        } catch {
+          c.set("teams", []);
+          c.set("hasTeam", false);
+        }
       } catch {
         c.set("apiUser", { id: "dev-user-id" });
+        c.set("teams", []);
+        c.set("hasTeam", false);
       }
 
       return next();
@@ -66,6 +79,15 @@ export function requireMiniAppUser(): MiddlewareHandler<{
         username: result.user.username,
       });
       c.set("apiUser", { id: apiUser.id });
+
+      try {
+        const teams = await getUserTeams(apiUser.id);
+        c.set("teams", teams);
+        c.set("hasTeam", teams.length > 0);
+      } catch {
+        c.set("teams", []);
+        c.set("hasTeam", false);
+      }
     } catch (err) {
       console.error("[miniapp] user sync error:", err);
       return c.json({ error: "Failed to sync user" }, 500);

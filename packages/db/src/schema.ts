@@ -3,11 +3,17 @@ import { sql } from "drizzle-orm";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
-  telegramId: integer("telegram_id").notNull().unique(),
-  username: text("username"),
+  telegramUserId: integer("telegram_user_id").notNull().unique(),
+  telegramUsername: text("telegram_username"),
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
   createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  lastSeenAt: text("last_seen_at")
     .notNull()
     .default(sql`(datetime('now'))`),
 });
@@ -15,10 +21,15 @@ export const users = sqliteTable("users", {
 export const teams = sqliteTable("teams", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  ownerId: text("owner_id")
+  slug: text("slug").notNull().unique(),
+  inviteCode: text("invite_code").notNull().unique(),
+  createdByUserId: text("created_by_user_id")
     .notNull()
     .references(() => users.id),
   createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
     .notNull()
     .default(sql`(datetime('now'))`),
 });
@@ -32,9 +43,29 @@ export const teamMembers = sqliteTable("team_members", {
     .notNull()
     .references(() => users.id),
   role: text("role").notNull().default("member"),
-  joinedAt: text("joined_at")
+  status: text("status").notNull().default("active"),
+  createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
+export const teamJoinRequests = sqliteTable("team_join_requests", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id),
+  status: text("status").notNull().default("pending"),
+  requestedAt: text("requested_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  reviewedAt: text("reviewed_at"),
+  reviewedByUserId: text("reviewed_by_user_id").references(() => users.id),
 });
 
 export const tasks = sqliteTable("tasks", {

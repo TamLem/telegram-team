@@ -13,8 +13,21 @@ export enum Priority {
 }
 
 export enum TeamRole {
+  OWNER = "owner",
   ADMIN = "admin",
   MEMBER = "member",
+}
+
+export enum MembershipStatus {
+  ACTIVE = "active",
+  REMOVED = "removed",
+}
+
+export enum JoinRequestStatus {
+  PENDING = "pending",
+  APPROVED = "approved",
+  REJECTED = "rejected",
+  CANCELLED = "cancelled",
 }
 
 export enum TaskEventType {

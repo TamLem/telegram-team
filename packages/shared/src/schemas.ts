@@ -1,25 +1,20 @@
 import { z } from "zod";
 import { TaskStatus, Priority, TeamRole } from "./enums.js";
 
-export const userIdSchema = z.string().uuid();
-export const teamIdSchema = z.string().uuid();
-export const taskIdSchema = z.string().uuid();
-
-export const createUserSchema = z.object({
-  telegramId: z.number().int().positive(),
-  username: z.string().nullable().optional(),
-  firstName: z.string().min(1),
-  lastName: z.string().nullable().optional(),
-});
+export const userIdSchema = z.string().min(1);
+export const teamIdSchema = z.string().min(1);
+export const taskIdSchema = z.string().min(1);
 
 export const createTeamSchema = z.object({
   name: z.string().min(1).max(100),
-  ownerId: z.string().uuid(),
 });
 
-export const addTeamMemberSchema = z.object({
-  userId: z.string().uuid(),
-  role: z.nativeEnum(TeamRole).default(TeamRole.MEMBER),
+export const joinTeamSchema = z.object({
+  inviteCode: z.string().min(1).max(50),
+});
+
+export const approveRejectSchema = z.object({
+  reviewerId: z.string().min(1),
 });
 
 export const createTaskSchema = z.object({
@@ -27,9 +22,8 @@ export const createTaskSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
   priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
-  assigneeId: z.string().uuid().nullable().optional(),
-  teamId: z.string().uuid().nullable().optional(),
-  createdById: z.string().uuid(),
+  assigneeId: z.string().nullable().optional(),
+  teamId: z.string().nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -37,7 +31,7 @@ export const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.nativeEnum(TaskStatus).optional(),
   priority: z.nativeEnum(Priority).optional(),
-  assigneeId: z.string().uuid().nullable().optional(),
+  assigneeId: z.string().nullable().optional(),
 });
 
 export const createCommentSchema = z.object({

@@ -1,4 +1,28 @@
-import { Task, TaskComment, Team, TeamMember, User } from "./types.js";
+import type { Task, TaskComment, Team, TeamMember, TeamJoinRequest, User } from "./types.js";
+
+export interface CreateTeamDto {
+  name: string;
+}
+
+export interface JoinTeamDto {
+  inviteCode: string;
+}
+
+export interface TeamResponse {
+  team: Team;
+}
+
+export interface TeamMembersListResponse {
+  members: (TeamMember & { user: User })[];
+}
+
+export interface TeamJoinRequestsListResponse {
+  requests: (TeamJoinRequest & { user: User })[];
+}
+
+export interface JoinRequestResponse {
+  request: TeamJoinRequest;
+}
 
 export interface CreateTaskDto {
   title: string;
@@ -28,29 +52,21 @@ export interface TasksListResponse {
   offset: number;
 }
 
-export interface CreateTeamDto {
-  name: string;
+export interface CreateCommentDto {
+  content: string;
 }
 
-export interface TeamResponse {
-  team: Team;
+export interface UserResponse {
+  user: User;
 }
 
-export interface TeamsListResponse {
+export interface UserTeamsResponse {
   teams: Team[];
 }
 
-export interface AddTeamMemberDto {
-  userId: string;
-  role?: string;
-}
-
-export interface TeamMembersListResponse {
-  members: (TeamMember & { user: User })[];
-}
-
-export interface CreateCommentDto {
-  content: string;
+export interface MeResponse {
+  user: User;
+  teams: Team[];
 }
 
 export interface ApiError {
