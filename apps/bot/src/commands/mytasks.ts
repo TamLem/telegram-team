@@ -1,5 +1,6 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { getUserState } from "../callbacks/onboarding.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -7,6 +8,9 @@ const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 export async function myTasksCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
   if (!from) return;
+
+  const chatId = ctx.chatId;
+  if (!chatId) return;
 
   const userRes = await fetch(`${API_BASE_URL}/api/users/telegram/${from.id}`, {
     method: "PUT",
@@ -39,7 +43,7 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const activeTeamId = ctx.getState<string>("activeTeamId") ?? teams[0].id;
+  const activeTeamId = getUserState(chatId, "activeTeamId") ?? teams[0].id;
 
   const tasksRes = await fetch(`${API_BASE_URL}/api/tasks?assigneeId=${apiUser.id}&teamId=${activeTeamId}&limit=10`, {
     headers: { "X-User-Id": apiUser.id },

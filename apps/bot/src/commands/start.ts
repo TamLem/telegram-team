@@ -1,6 +1,7 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { setUserState } from "../callbacks/onboarding.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 
@@ -54,23 +55,18 @@ const ONBOARDING_KEYBOARD: InlineKeyboardMarkup = {
   ],
 };
 
-const POST_SETUP_KEYBOARD: InlineKeyboardMarkup = {
-  inline_keyboard: [
-    [{ text: "Create Task", callback_data: "onboard:newtask" }],
-    [{ text: "Open Board", callback_data: "onboard:board" }],
-    [{ text: "Invite Members", callback_data: "onboard:invite" }],
-  ],
-};
-
 export async function startCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
   if (!from) return;
+
+  const chatId = ctx.chatId;
+  if (!chatId) return;
 
   const apiUser = await syncUser(from);
 
   const teams = await getActiveTeams(apiUser.id);
 
-  ctx.setState("apiUserId", apiUser.id);
+  setUserState(chatId, "apiUserId", apiUser.id);
 
   if (teams.length === 0) {
     const firstName = from.first_name;
@@ -83,7 +79,7 @@ export async function startCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  ctx.setState("activeTeamId", teams[0].id);
+  setUserState(chatId, "activeTeamId", teams[0].id);
 
   const teamList = teams.map((t) => `  • ${t.name}`).join("\n");
 

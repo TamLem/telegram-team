@@ -1,6 +1,7 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { getUserState, setUserState } from "../callbacks/onboarding.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -62,6 +63,9 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
+  const chatId = ctx.chatId;
+  if (!chatId) return;
+
   const apiUser = await syncUser(from);
 
   const teams = await getActiveTeams(apiUser.id);
@@ -73,8 +77,8 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const activeTeamId = ctx.getState<string>("activeTeamId") ?? teams[0].id;
-  ctx.setState("activeTeamId", activeTeamId);
+  const activeTeamId = getUserState(chatId, "activeTeamId") ?? teams[0].id;
+  setUserState(chatId, "activeTeamId", activeTeamId);
 
   const { task } = await apiFetch<{ task: { id: string; title: string; status: string; priority: string } }>(
     "/api/tasks",

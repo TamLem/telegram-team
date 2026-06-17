@@ -5,6 +5,31 @@ import { getEnv } from "@telegram-team/config";
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 
+const conversationStates = new Map<number, { state: string; data?: Record<string, string> }>();
+const userState = new Map<number, Record<string, string>>();
+
+export function getUserState(chatId: number, key: string): string | undefined {
+  return userState.get(chatId)?.[key];
+}
+
+export function setUserState(chatId: number, key: string, value: string): void {
+  const existing = userState.get(chatId) ?? {};
+  existing[key] = value;
+  userState.set(chatId, existing);
+}
+
+function getConvo(chatId: number) {
+  return conversationStates.get(chatId);
+}
+
+function setConvo(chatId: number, state: string, data?: Record<string, string>) {
+  conversationStates.set(chatId, { state, data });
+}
+
+function clearConvo(chatId: number) {
+  conversationStates.delete(chatId);
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -58,7 +83,9 @@ export async function onboardingCallback(
   const [, action, ...rest] = data.split(":");
 
   if (action === "create") {
-    ctx.setState("onboarding", "awaiting_team_name");
+    const chatId = ctx.chatId;
+    if (!chatId) return;
+    setConvo(chatId, "awaiting_team_name");
     await ctx.editMessageText(
       "Great! What would you like to name your team?\n\nJust send me the team name.",
       { reply_markup: { inline_keyboard: [] } }
@@ -68,7 +95,9 @@ export async function onboardingCallback(
   }
 
   if (action === "join") {
-    ctx.setState("onboarding", "awaiting_invite_code");
+    const chatId = ctx.chatId;
+    if (!chatId) return;
+    setConvo(chatId, "awaiting_invite_code");
     await ctx.editMessageText(
       "Please send me the invite code for the team you want to join.",
       { reply_markup: { inline_keyboard: [] } }
@@ -182,8 +211,13 @@ export async function onboardingCallback(
 }
 
 export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
-  const state = ctx.getState<string>("onboarding");
-  if (!state) return;
+  const chatId = ctx.chatId;
+  if (!chatId) return;
+
+  const convo = getConvo(chatId);
+  if (!convo) return;
+
+  const state = convo.state;
 
   const text = ctx.text;
   if (!text || text.startsWith("/")) return;
@@ -210,8 +244,7 @@ export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
         }
       );
 
-      ctx.setState("onboarding", undefined);
-      ctx.setState("activeTeamId", team.id);
+      clearConvo(chatId);
 
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
@@ -247,7 +280,7 @@ export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
         }
       );
 
-      ctx.setState("onboarding", undefined);
+      clearConvo(chatId);
 
       await ctx.reply(
         "Join request sent.\n\nAn admin must approve your request before you can access the team workspace."
@@ -285,7 +318,7 @@ export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed";
       await ctx.reply(`Failed to send join request: ${message}. Please try again.`);
-      ctx.setState("onboarding", undefined);
+      clearConvo(chatId);
     }
     return;
   }
