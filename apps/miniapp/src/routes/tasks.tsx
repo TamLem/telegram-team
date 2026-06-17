@@ -81,6 +81,7 @@ tasksRoutes.post("/tasks", async (c) => {
     title: string;
     description?: string;
     priority?: string;
+    dueAt?: string;
   }>();
 
   if (!body.title || body.title.trim().length === 0) {
@@ -91,6 +92,7 @@ tasksRoutes.post("/tasks", async (c) => {
     title: body.title.trim(),
     description: body.description ?? null,
     priority: body.priority ?? "normal",
+    dueAt: body.dueAt || null,
     teamId: teams[0].id,
     createdById: apiUser.id,
   });
