@@ -6,6 +6,8 @@ import { NewTaskPage } from "../views/pages/NewTaskPage.js";
 import {
   getMyTasks,
   getTask,
+  getTaskComments,
+  getTaskEvents,
   createTask,
   updateTaskStatus,
 } from "../services/apiClient.js";
@@ -41,7 +43,21 @@ tasksRoutes.get("/tasks/:id", async (c) => {
   const { id } = c.req.param();
   const task = await getTask(id);
 
-  return c.render(<TaskDetailPage task={task} />);
+  let comments: any[] = [];
+  let events: any[] = [];
+
+  if (task) {
+    try {
+      comments = await getTaskComments(task.id);
+    } catch {}
+    try {
+      events = await getTaskEvents(task.id);
+    } catch {}
+  }
+
+  return c.render(
+    <TaskDetailPage task={task} comments={comments} events={events} />
+  );
 });
 
 tasksRoutes.get("/new-task", async (c) => {
@@ -74,7 +90,7 @@ tasksRoutes.post("/tasks", async (c) => {
   const task = await createTask({
     title: body.title.trim(),
     description: body.description ?? null,
-    priority: body.priority ?? "medium",
+    priority: body.priority ?? "normal",
     teamId: teams[0].id,
     createdById: apiUser.id,
   });

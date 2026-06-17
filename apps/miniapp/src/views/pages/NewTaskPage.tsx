@@ -45,11 +45,23 @@ export const NewTaskPage: FC = () => {
               Priority
             </label>
             <select id="priority" name="priority" class="form-select">
-              <option value="medium">Medium</option>
+              <option value="normal" selected>Normal</option>
               <option value="low">Low</option>
               <option value="high">High</option>
               <option value="urgent">Urgent</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="dueAt">
+              Due Date
+            </label>
+            <input
+              id="dueAt"
+              name="dueAt"
+              type="date"
+              class="form-input"
+            />
           </div>
 
           <Button type="submit" block>

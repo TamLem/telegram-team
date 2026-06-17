@@ -13,17 +13,12 @@ export const joinTeamSchema = z.object({
   inviteCode: z.string().min(1).max(50),
 });
 
-export const approveRejectSchema = z.object({
-  reviewerId: z.string().min(1),
-});
-
 export const createTaskSchema = z.object({
   title: z.string().min(1).max(500),
   description: z.string().nullable().optional(),
-  status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
-  priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
-  assigneeId: z.string().nullable().optional(),
-  teamId: z.string().nullable().optional(),
+  priority: z.nativeEnum(Priority).default(Priority.NORMAL),
+  assignedToUserId: z.string().nullable().optional(),
+  dueAt: z.string().nullable().optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -31,11 +26,20 @@ export const updateTaskSchema = z.object({
   description: z.string().nullable().optional(),
   status: z.nativeEnum(TaskStatus).optional(),
   priority: z.nativeEnum(Priority).optional(),
-  assigneeId: z.string().nullable().optional(),
+  assignedToUserId: z.string().nullable().optional(),
+  dueAt: z.string().nullable().optional(),
+});
+
+export const updateTaskStatusSchema = z.object({
+  status: z.nativeEnum(TaskStatus),
+});
+
+export const assignTaskSchema = z.object({
+  assignedToUserId: z.string().min(1),
 });
 
 export const createCommentSchema = z.object({
-  content: z.string().min(1).max(2000),
+  body: z.string().min(1).max(2000),
 });
 
 export const paginationSchema = z.object({

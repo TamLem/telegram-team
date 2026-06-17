@@ -41,31 +41,36 @@ export interface TeamJoinRequest {
 
 export interface Task {
   id: string;
+  teamId: string;
   title: string;
   description: string | null;
   status: string;
   priority: string;
-  assigneeId: string | null;
-  teamId: string | null;
   createdById: string;
+  assignedToUserId: string | null;
+  dueAt: string | null;
   createdAt: string;
   updatedAt: string;
+  completedAt: string | null;
+  cancelledAt: string | null;
 }
 
 export interface TaskComment {
   id: string;
   taskId: string;
   userId: string;
-  content: string;
+  body: string;
   createdAt: string;
 }
 
 export interface TaskEvent {
   id: string;
   taskId: string;
-  userId: string;
+  teamId: string;
+  actorUserId: string;
   eventType: string;
-  data: string | null;
+  oldValue: string | null;
+  newValue: string | null;
   createdAt: string;
 }
 

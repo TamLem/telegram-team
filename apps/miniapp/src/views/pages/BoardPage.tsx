@@ -2,17 +2,17 @@ import type { FC } from "hono/jsx";
 import type { TaskResponse } from "../../services/apiClient.js";
 import { StatusColumn } from "../components/StatusColumn.js";
 
-const COLUMN_ORDER = ["todo", "in_progress", "done", "cancelled"];
+interface BoardColumn {
+  status: string;
+  label: string;
+  tasks: TaskResponse[];
+  count: number;
+}
 
 export const BoardPage: FC<{
   teamId: string;
-  tasks: TaskResponse[];
-}> = ({ teamId, tasks }) => {
-  const columns = COLUMN_ORDER.map((status) => ({
-    status,
-    tasks: tasks.filter((t) => t.status === status),
-  }));
-
+  columns: BoardColumn[];
+}> = ({ teamId, columns }) => {
   return (
     <div>
       <div class="header">
@@ -24,7 +24,11 @@ export const BoardPage: FC<{
 
       <div class="columns">
         {columns.map((col) => (
-          <StatusColumn status={col.status} tasks={col.tasks} />
+          <StatusColumn
+            status={col.status}
+            label={col.label}
+            tasks={col.tasks}
+          />
         ))}
       </div>
     </div>

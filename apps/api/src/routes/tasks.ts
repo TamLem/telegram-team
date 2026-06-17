@@ -1,12 +1,29 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { createTaskSchema, updateTaskSchema, paginationSchema } from "@telegram-team/shared";
+import {
+  createTaskSchema,
+  updateTaskSchema,
+  updateTaskStatusSchema,
+  assignTaskSchema,
+  createCommentSchema,
+  paginationSchema,
+} from "@telegram-team/shared";
+import { users as usersTable } from "@telegram-team/db";
+import { eq } from "drizzle-orm";
 import { getDb } from "@telegram-team/db";
-import { tasks, taskComments, taskEvents, users } from "@telegram-team/db";
-import { eq, desc, count, and, inArray } from "drizzle-orm";
-import { generateId } from "@telegram-team/shared";
-import { getTeamMember, isTeamAdmin, getUserActiveMemberships } from "../services/membership.service.js";
-import { canCreateTask, canUpdateTask } from "../services/authorization.service.js";
+import {
+  createTask,
+  getTaskById,
+  listTasks,
+  updateTask,
+  updateTaskStatus,
+  assignTask,
+  addTaskComment,
+  getTaskComments,
+  getTaskEvents,
+} from "../services/task.service.js";
+import { getTeamMember, getUserActiveMemberships } from "../services/membership.service.js";
+import { isAdminOrOwner } from "../services/authorization.service.js";
 
 export const tasksRouter = new Hono();
 
@@ -14,25 +31,13 @@ function getUserId(c: any): string {
   return c.get("apiUser")?.id ?? c.req.header("X-User-Id") ?? "";
 }
 
-async function requireTeamAccess(c: any, teamId: string) {
-  const userId = getUserId(c);
-  if (!userId) {
-    return { error: "Unauthorized", status: 401 };
-  }
-
-  const member = await getTeamMember(teamId, userId);
-  if (!member) {
-    return { error: "You are not a member of this team", status: 403 };
-  }
-
-  return { member, userId };
-}
-
 tasksRouter.get("/tasks", zValidator("query", paginationSchema), async (c) => {
   const { limit, offset } = c.req.valid("query");
-  const teamId = c.req.query("teamId");
-  const assigneeId = c.req.query("assigneeId");
+  const teamId = c.req.query("team_id");
+  const assignedTo = c.req.query("assigned_to");
+  const createdBy = c.req.query("created_by");
   const status = c.req.query("status");
+  const priority = c.req.query("priority");
 
   const userId = getUserId(c);
   if (!userId) {
@@ -42,47 +47,23 @@ tasksRouter.get("/tasks", zValidator("query", paginationSchema), async (c) => {
   const memberships = await getUserActiveMemberships(userId);
   const userTeamIds = memberships.map((m) => m.teamId);
 
-  const db = getDb();
-  const conditions = [];
-
-  if (teamId) {
-    if (!userTeamIds.includes(teamId)) {
-      return c.json({ error: "You are not a member of this team" }, 403);
-    }
-    conditions.push(eq(tasks.teamId, teamId));
-  } else {
-    if (userTeamIds.length === 0) {
-      conditions.push(eq(tasks.teamId, "__none__"));
-    } else {
-      conditions.push(inArray(tasks.teamId, userTeamIds));
-    }
+  if (teamId && !userTeamIds.includes(teamId)) {
+    return c.json({ error: "You are not a member of this team" }, 403);
   }
 
-  if (assigneeId) {
-    conditions.push(eq(tasks.assigneeId, assigneeId));
-  }
-  if (status) {
-    conditions.push(eq(tasks.status, status));
-  }
-
-  const where = and(...conditions);
-
-  const [total] = await db
-    .select({ count: count() })
-    .from(tasks)
-    .where(where);
-
-  const result = await db
-    .select()
-    .from(tasks)
-    .where(where)
-    .orderBy(desc(tasks.updatedAt))
-    .limit(limit)
-    .offset(offset);
+  const result = await listTasks({
+    teamId: teamId ?? undefined,
+    assignedToUserId: assignedTo === "me" ? userId : undefined,
+    createdById: createdBy === "me" ? userId : undefined,
+    status: status ?? undefined,
+    priority: priority ?? undefined,
+    limit,
+    offset,
+  });
 
   return c.json({
-    tasks: result,
-    total: total.count,
+    tasks: result.tasks,
+    total: result.total,
     limit,
     offset,
   });
@@ -95,207 +76,230 @@ tasksRouter.post("/tasks", zValidator("json", createTaskSchema), async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const teamId = body.teamId;
-  if (!teamId) {
-    return c.json({ error: "teamId is required" }, 400);
-  }
+  const teamId = c.req.header("X-Team-Id");
+  if (teamId) {
+    const member = await getTeamMember(teamId, userId);
+    if (!member) {
+      return c.json({ error: "You are not a member of this team" }, 403);
+    }
 
-  const member = await getTeamMember(teamId, userId);
-  if (!member) {
-    return c.json({ error: "You are not a member of this team" }, 403);
-  }
-
-  if (!canCreateTask(member)) {
-    return c.json({ error: "You do not have permission to create tasks" }, 403);
-  }
-
-  const db = getDb();
-  const id = generateId();
-  const now = new Date().toISOString();
-
-  const [task] = await db
-    .insert(tasks)
-    .values({
-      id,
+    const task = await createTask({
       title: body.title,
-      description: body.description ?? null,
-      status: body.status ?? "todo",
-      priority: body.priority ?? "medium",
-      assigneeId: body.assigneeId ?? null,
       teamId,
       createdById: userId,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
+      description: body.description,
+      priority: body.priority,
+      assignedToUserId: body.assignedToUserId,
+      dueAt: body.dueAt,
+    });
 
-  await db.insert(taskEvents).values({
-    id: generateId(),
-    taskId: id,
-    userId,
-    eventType: "created",
-    createdAt: now,
+    return c.json({ task }, 201);
+  }
+
+  const memberships = await getUserActiveMemberships(userId);
+  if (memberships.length === 0) {
+    return c.json({ error: "You are not a member of any team" }, 403);
+  }
+
+  const defaultTeamId = memberships[0].teamId;
+
+  const task = await createTask({
+    title: body.title,
+    teamId: defaultTeamId,
+    createdById: userId,
+    description: body.description,
+    priority: body.priority,
+    assignedToUserId: body.assignedToUserId,
+    dueAt: body.dueAt,
   });
 
   return c.json({ task }, 201);
 });
 
-tasksRouter.get("/tasks/:id", async (c) => {
-  const { id } = c.req.param();
-  const db = getDb();
-
-  const [task] = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.id, id))
-    .limit(1);
+tasksRouter.get("/tasks/:taskId", async (c) => {
+  const { taskId } = c.req.param();
+  const task = await getTaskById(taskId);
 
   if (!task) {
     return c.json({ error: "Task not found" }, 404);
   }
 
-  if (task.teamId) {
-    const userId = getUserId(c);
-    if (userId) {
-      const member = await getTeamMember(task.teamId, userId);
-      if (!member) {
-        return c.json({ error: "Access denied" }, 403);
-      }
-    }
-  }
-
-  return c.json({ task });
-});
-
-tasksRouter.patch("/tasks/:id", zValidator("json", updateTaskSchema), async (c) => {
-  const { id } = c.req.param();
-  const body = c.req.valid("json");
   const userId = getUserId(c);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const db = getDb();
-
-  const [existing] = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.id, id))
-    .limit(1);
-
-  if (!existing) {
-    return c.json({ error: "Task not found" }, 404);
-  }
-
-  if (existing.teamId) {
-    const member = await getTeamMember(existing.teamId, userId);
-    if (!member) {
-      return c.json({ error: "Access denied" }, 403);
-    }
-    if (!canUpdateTask(member, existing.createdById, existing.assigneeId)) {
-      return c.json({ error: "You do not have permission to update this task" }, 403);
-    }
-  }
-
-  const updates: Record<string, unknown> = { updatedAt: new Date().toISOString() };
-  if (body.title !== undefined) updates.title = body.title;
-  if (body.description !== undefined) updates.description = body.description;
-  if (body.status !== undefined) updates.status = body.status;
-  if (body.priority !== undefined) updates.priority = body.priority;
-  if (body.assigneeId !== undefined) updates.assigneeId = body.assigneeId;
-
-  const [task] = await db
-    .update(tasks)
-    .set(updates)
-    .where(eq(tasks.id, id))
-    .returning();
-
-  if (body.status !== undefined && body.status !== existing.status) {
-    await db.insert(taskEvents).values({
-      id: generateId(),
-      taskId: id,
-      userId,
-      eventType: "status_changed",
-      data: JSON.stringify({ from: existing.status, to: body.status }),
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-  return c.json({ task });
-});
-
-tasksRouter.get("/tasks/:id/comments", async (c) => {
-  const { id } = c.req.param();
-  const db = getDb();
-
-  const result = await db
-    .select()
-    .from(taskComments)
-    .innerJoin(users, eq(taskComments.userId, users.id))
-    .where(eq(taskComments.taskId, id))
-    .orderBy(taskComments.createdAt);
-
-  const comments = result.map(({ task_comments, users }) => ({
-    ...task_comments,
-    user: users,
-  }));
-
-  return c.json({ comments });
-});
-
-tasksRouter.post("/tasks/:id/comments", async (c) => {
-  const { id } = c.req.param();
-  const body = await c.req.json<{ content: string }>();
-  const userId = getUserId(c);
-  if (!userId) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const db = getDb();
-
-  const [task] = await db
-    .select()
-    .from(tasks)
-    .where(eq(tasks.id, id))
-    .limit(1);
-
-  if (!task) {
-    return c.json({ error: "Task not found" }, 404);
-  }
-
-  if (task.teamId) {
+  if (userId) {
     const member = await getTeamMember(task.teamId, userId);
     if (!member) {
       return c.json({ error: "Access denied" }, 403);
     }
   }
 
-  const commentId = generateId();
-  const now = new Date().toISOString();
-
-  const [comment] = await db
-    .insert(taskComments)
-    .values({
-      id: commentId,
-      taskId: id,
-      userId,
-      content: body.content,
-      createdAt: now,
-    })
-    .returning();
-
-  return c.json({ comment }, 201);
+  return c.json({ task });
 });
 
-tasksRouter.get("/tasks/:id/events", async (c) => {
-  const { id } = c.req.param();
+tasksRouter.patch("/tasks/:taskId", zValidator("json", updateTaskSchema), async (c) => {
+  const { taskId } = c.req.param();
+  const body = c.req.valid("json");
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const existing = await getTaskById(taskId);
+  if (!existing) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const member = await getTeamMember(existing.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  if (
+    !isAdminOrOwner(member.role) &&
+    existing.createdById !== userId &&
+    existing.assignedToUserId !== userId
+  ) {
+    return c.json({ error: "You do not have permission to update this task" }, 403);
+  }
+
+  const task = await updateTask(taskId, body, userId);
+  if (!task) {
+    return c.json({ error: "Failed to update task" }, 500);
+  }
+
+  return c.json({ task });
+});
+
+tasksRouter.post(
+  "/tasks/:taskId/status",
+  zValidator("json", updateTaskStatusSchema),
+  async (c) => {
+    const { taskId } = c.req.param();
+    const { status } = c.req.valid("json");
+    const userId = getUserId(c);
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const existing = await getTaskById(taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const member = await getTeamMember(existing.teamId, userId);
+    if (!member) {
+      return c.json({ error: "Access denied" }, 403);
+    }
+
+    if (
+      !isAdminOrOwner(member.role) &&
+      existing.createdById !== userId &&
+      existing.assignedToUserId !== userId
+    ) {
+      return c.json({ error: "Permission denied" }, 403);
+    }
+
+    const task = await updateTaskStatus(taskId, status, userId);
+    if (!task) {
+      return c.json({ error: "Failed to update status" }, 500);
+    }
+
+    return c.json({ task });
+  }
+);
+
+tasksRouter.post(
+  "/tasks/:taskId/assign",
+  zValidator("json", assignTaskSchema),
+  async (c) => {
+    const { taskId } = c.req.param();
+    const { assignedToUserId } = c.req.valid("json");
+    const userId = getUserId(c);
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const existing = await getTaskById(taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const member = await getTeamMember(existing.teamId, userId);
+    if (!member) {
+      return c.json({ error: "Access denied" }, 403);
+    }
+
+    if (!isAdminOrOwner(member.role)) {
+      return c.json({ error: "Admin access required to assign tasks" }, 403);
+    }
+
+    const assignee = await getTeamMember(existing.teamId, assignedToUserId);
+    if (!assignee) {
+      return c.json({ error: "Assignee is not a member of this team" }, 400);
+    }
+
+    const task = await assignTask(taskId, assignedToUserId, userId);
+    if (!task) {
+      return c.json({ error: "Failed to assign task" }, 500);
+    }
+
+    return c.json({ task });
+  }
+);
+
+tasksRouter.get("/tasks/:taskId/comments", async (c) => {
+  const { taskId } = c.req.param();
   const db = getDb();
 
-  const result = await db
-    .select()
-    .from(taskEvents)
-    .where(eq(taskEvents.taskId, id))
-    .orderBy(desc(taskEvents.createdAt));
+  const comments = await getTaskComments(taskId);
 
-  return c.json({ events: result });
+  const withUsers = await Promise.all(
+    comments.map(async (comment) => {
+      const [user] = await db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.id, comment.userId))
+        .limit(1);
+      return { ...comment, user: user ?? null };
+    })
+  );
+
+  return c.json({ comments: withUsers });
+});
+
+tasksRouter.post(
+  "/tasks/:taskId/comments",
+  zValidator("json", createCommentSchema),
+  async (c) => {
+    const { taskId } = c.req.param();
+    const { body: bodyContent } = c.req.valid("json");
+    const userId = getUserId(c);
+    if (!userId) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    const existing = await getTaskById(taskId);
+    if (!existing) {
+      return c.json({ error: "Task not found" }, 404);
+    }
+
+    const member = await getTeamMember(existing.teamId, userId);
+    if (!member) {
+      return c.json({ error: "Access denied" }, 403);
+    }
+
+    const comment = await addTaskComment({
+      taskId,
+      userId,
+      body: bodyContent,
+      teamId: existing.teamId,
+    });
+
+    return c.json({ comment }, 201);
+  }
+);
+
+tasksRouter.get("/tasks/:taskId/events", async (c) => {
+  const { taskId } = c.req.param();
+  const events = await getTaskEvents(taskId);
+  return c.json({ events });
 });

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { requireMiniAppUser } from "../auth/requireMiniAppUser.js";
 import { BoardPage } from "../views/pages/BoardPage.js";
-import { getBoardTasks } from "../services/apiClient.js";
+import { getBoard } from "../services/apiClient.js";
 
 const boardRoutes = new Hono<{
   Variables: {
@@ -23,9 +23,9 @@ boardRoutes.get("/board/:teamId", async (c) => {
     return c.redirect("/app/onboarding");
   }
 
-  const tasks = await getBoardTasks(teamId, apiUser.id);
+  const { columns } = await getBoard(teamId, apiUser.id);
 
-  return c.render(<BoardPage teamId={teamId} tasks={tasks} />);
+  return c.render(<BoardPage teamId={teamId} columns={columns} />);
 });
 
 export { boardRoutes };

@@ -64,31 +64,36 @@ CREATE TABLE IF NOT EXISTS team_join_requests (
 
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id),
   title TEXT NOT NULL,
   description TEXT,
   status TEXT NOT NULL DEFAULT 'todo',
-  priority TEXT NOT NULL DEFAULT 'medium',
-  assignee_id TEXT REFERENCES users(id),
-  team_id TEXT REFERENCES teams(id),
-  created_by_id TEXT NOT NULL REFERENCES users(id),
+  priority TEXT NOT NULL DEFAULT 'normal',
+  created_by_user_id TEXT NOT NULL REFERENCES users(id),
+  assigned_to_user_id TEXT REFERENCES users(id),
+  due_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  cancelled_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS task_comments (
   id TEXT PRIMARY KEY,
   task_id TEXT NOT NULL REFERENCES tasks(id),
   user_id TEXT NOT NULL REFERENCES users(id),
-  content TEXT NOT NULL,
+  body TEXT NOT NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS task_events (
   id TEXT PRIMARY KEY,
   task_id TEXT NOT NULL REFERENCES tasks(id),
-  user_id TEXT NOT NULL REFERENCES users(id),
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  actor_user_id TEXT NOT NULL REFERENCES users(id),
   event_type TEXT NOT NULL,
-  data TEXT,
+  old_value TEXT,
+  new_value TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

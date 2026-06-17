@@ -1,4 +1,5 @@
 import type { BotContext } from "@telegram-team/bot-engine";
+import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
 import { getUserState } from "../callbacks/onboarding.js";
 
@@ -34,7 +35,9 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
     headers: { "X-User-Id": apiUser.id },
   });
 
-  const { teams } = (await teamsRes.json()) as { teams: Array<{ id: string; name: string; role: string }> };
+  const { teams } = (await teamsRes.json()) as {
+    teams: Array<{ id: string; name: string; role: string }>;
+  };
 
   if (!teams || teams.length === 0) {
     await ctx.reply(
@@ -45,12 +48,20 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
 
   const activeTeamId = getUserState(chatId, "activeTeamId") ?? teams[0].id;
 
-  const tasksRes = await fetch(`${API_BASE_URL}/api/tasks?assigneeId=${apiUser.id}&teamId=${activeTeamId}&limit=10`, {
-    headers: { "X-User-Id": apiUser.id },
-  });
+  const tasksRes = await fetch(
+    `${API_BASE_URL}/api/tasks?assigned_to=me&team_id=${activeTeamId}&limit=10`,
+    { headers: { "X-User-Id": apiUser.id } }
+  );
 
   const { tasks } = (await tasksRes.json()) as {
-    tasks: Array<{ id: string; title: string; status: string; priority: string }>;
+    tasks: Array<{
+      id: string;
+      title: string;
+      status: string;
+      priority: string;
+      assignedToUserId: string | null;
+      dueAt: string | null;
+    }>;
   };
 
   if (!tasks || tasks.length === 0) {
@@ -58,17 +69,40 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const statusIcons: Record<string, string> = {
-    todo: "○",
-    in_progress: "◔",
-    done: "✓",
-    cancelled: "✗",
-  };
+  for (const task of tasks) {
+    const statusIcons: Record<string, string> = {
+      todo: "○",
+      doing: "◔",
+      blocked: "⊘",
+      done: "✓",
+      cancelled: "✗",
+    };
 
-  const lines = tasks.map((task) => {
     const icon = statusIcons[task.status] ?? "○";
-    return `${icon} <a href="${MINIAPP_BASE_URL}/app/tasks/${task.id}">${task.title}</a>`;
-  });
 
-  await ctx.reply(`<b>Your Tasks</b>\n\n${lines.join("\n")}`);
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [
+          ...(task.status === "todo"
+            ? [{ text: "Doing", callback_data: `task:status:doing:${task.id}` }]
+            : []),
+          ...(task.status === "todo" || task.status === "doing"
+            ? [{ text: "Blocked", callback_data: `task:status:blocked:${task.id}` }]
+            : []),
+          ...(task.status !== "done" && task.status !== "cancelled"
+            ? [{ text: "Done", callback_data: `task:status:done:${task.id}` }]
+            : []),
+        ],
+        [
+          { text: "Open Details", url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` },
+        ],
+      ].filter((row) => row.length > 0),
+    };
+
+    await ctx.reply(
+      `${icon} <b>${task.title}</b>\n` +
+        `Status: ${task.status} | Priority: ${task.priority}`,
+      { reply_markup: keyboard }
+    );
+  }
 }

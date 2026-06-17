@@ -4,14 +4,15 @@ import { Button } from "../components/Button.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
-  in_progress: "In Progress",
+  doing: "Doing",
+  blocked: "Blocked",
   done: "Done",
   cancelled: "Cancelled",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
-  medium: "Medium",
+  normal: "Normal",
   high: "High",
   urgent: "Urgent",
 };
@@ -27,18 +28,38 @@ function formatDate(dateString: string): string {
   });
 }
 
+function formatDueDate(dateString: string | null): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function statusActions(task: TaskResponse) {
-  const allActions = [
-    { label: "Start", newStatus: "in_progress", variant: "primary" as const },
-    { label: "Complete", newStatus: "done", variant: "primary" as const },
-    { label: "Cancel", newStatus: "cancelled", variant: "secondary" as const },
-  ];
+  const allActions: { label: string; newStatus: string; variant: "primary" | "secondary" }[] = [];
+  if (task.status === "todo") {
+    allActions.push({ label: "Start Doing", newStatus: "doing", variant: "primary" });
+  }
+  if (task.status === "todo" || task.status === "doing") {
+    allActions.push({ label: "Block", newStatus: "blocked", variant: "secondary" });
+  }
+  if (task.status !== "done" && task.status !== "cancelled") {
+    allActions.push({ label: "Complete", newStatus: "done", variant: "primary" });
+  }
+  if (task.status !== "cancelled") {
+    allActions.push({ label: "Cancel", newStatus: "cancelled", variant: "secondary" });
+  }
   return allActions.filter((a) => a.newStatus !== task.status);
 }
 
 export const TaskDetailPage: FC<{
   task: TaskResponse | null;
-}> = ({ task }) => {
+  comments?: Array<{ id: string; body: string; userId: string; createdAt: string; user?: { firstName: string; telegramUsername: string | null } | null }>;
+  events?: Array<{ id: string; eventType: string; actorUserId: string; oldValue: string | null; newValue: string | null; createdAt: string }>;
+}> = ({ task, comments, events }) => {
   if (!task) {
     return (
       <div>
@@ -77,24 +98,30 @@ export const TaskDetailPage: FC<{
         </div>
 
         {task.description ? (
-          <p
-            style="margin-top: 12px; white-space: pre-wrap; color: var(--tg-theme-text-color, #475569); font-size: 14px; line-height: 1.6;"
-          >
+          <p style="margin-top: 12px; white-space: pre-wrap; color: var(--tg-theme-text-color, #475569); font-size: 14px; line-height: 1.6;">
             {task.description}
           </p>
         ) : (
-          <p
-            style="margin-top: 12px; color: var(--tg-theme-hint-color, #94a3b8); font-size: 14px; font-style: italic;"
-          >
+          <p style="margin-top: 12px; color: var(--tg-theme-hint-color, #94a3b8); font-size: 14px; font-style: italic;">
             No description provided.
           </p>
         )}
+
+        <div style="margin-top: 12px; font-size: 13px; color: var(--tg-theme-hint-color, #64748b); display: flex; flex-wrap: wrap; gap: 12px;">
+          <span>Due: {task.dueAt ? formatDueDate(task.dueAt) : "Not set"}</span>
+          <span>Assigned: {task.assignedToUserId ? "Yes" : "Unassigned"}</span>
+        </div>
 
         <div style="margin-top: 16px; font-size: 12px; color: var(--tg-theme-hint-color, #94a3b8);">
           Created: {formatDate(task.createdAt)}
           {task.updatedAt !== task.createdAt && (
             <span>
               {" "}&middot; Updated: {formatDate(task.updatedAt)}
+            </span>
+          )}
+          {task.completedAt && (
+            <span>
+              {" "}&middot; Completed: {formatDate(task.completedAt)}
             </span>
           )}
         </div>
@@ -112,20 +139,49 @@ export const TaskDetailPage: FC<{
                 action={`/app/tasks/${task.id}/status`}
                 style="display: inline;"
               >
-                <input
-                  type="hidden"
-                  name="status"
-                  value={action.newStatus}
-                />
-                <Button
-                  type="submit"
-                  variant={action.variant}
-                >
+                <input type="hidden" name="status" value={action.newStatus} />
+                <Button type="submit" variant={action.variant}>
                   {action.label}
                 </Button>
               </form>
             ))}
           </div>
+        </div>
+      )}
+
+      {comments && comments.length > 0 && (
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+            Comments ({comments.length})
+          </h3>
+          {comments.map((comment) => (
+            <div class="comment">
+              <div class="comment-meta">
+                {comment.user?.firstName ?? comment.userId}
+                {" "}&middot;{" "}
+                {formatDate(comment.createdAt)}
+              </div>
+              <div class="comment-body">{comment.body}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {events && events.length > 0 && (
+        <div class="card">
+          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+            Activity
+          </h3>
+          {events.map((event) => (
+            <div style="font-size: 13px; padding: 4px 0; color: var(--tg-theme-hint-color, #64748b);">
+              {event.eventType.replace(/_/g, " ")}
+              {event.oldValue && event.newValue && (
+                <span>: {event.oldValue} → {event.newValue}</span>
+              )}
+              {" "}&middot;{" "}
+              <span style="font-size: 12px;">{formatDate(event.createdAt)}</span>
+            </div>
+          ))}
         </div>
       )}
     </div>

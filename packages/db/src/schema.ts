@@ -70,21 +70,26 @@ export const teamJoinRequests = sqliteTable("team_join_requests", {
 
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id),
   title: text("title").notNull(),
   description: text("description"),
   status: text("status").notNull().default("todo"),
-  priority: text("priority").notNull().default("medium"),
-  assigneeId: text("assignee_id").references(() => users.id),
-  teamId: text("team_id").references(() => teams.id),
-  createdById: text("created_by_id")
+  priority: text("priority").notNull().default("normal"),
+  createdById: text("created_by_user_id")
     .notNull()
     .references(() => users.id),
+  assignedToUserId: text("assigned_to_user_id").references(() => users.id),
+  dueAt: text("due_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`(datetime('now'))`),
+  completedAt: text("completed_at"),
+  cancelledAt: text("cancelled_at"),
 });
 
 export const taskComments = sqliteTable("task_comments", {
@@ -95,7 +100,7 @@ export const taskComments = sqliteTable("task_comments", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id),
-  content: text("content").notNull(),
+  body: text("body").notNull(),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -106,11 +111,15 @@ export const taskEvents = sqliteTable("task_events", {
   taskId: text("task_id")
     .notNull()
     .references(() => tasks.id),
-  userId: text("user_id")
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id),
+  actorUserId: text("actor_user_id")
     .notNull()
     .references(() => users.id),
   eventType: text("event_type").notNull(),
-  data: text("data"),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

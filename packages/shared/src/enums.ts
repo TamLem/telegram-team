@@ -1,13 +1,14 @@
 export enum TaskStatus {
   TODO = "todo",
-  IN_PROGRESS = "in_progress",
+  DOING = "doing",
+  BLOCKED = "blocked",
   DONE = "done",
   CANCELLED = "cancelled",
 }
 
 export enum Priority {
   LOW = "low",
-  MEDIUM = "medium",
+  NORMAL = "normal",
   HIGH = "high",
   URGENT = "urgent",
 }
@@ -31,9 +32,12 @@ export enum JoinRequestStatus {
 }
 
 export enum TaskEventType {
-  CREATED = "created",
+  TASK_CREATED = "task_created",
   STATUS_CHANGED = "status_changed",
-  PRIORITY_CHANGED = "priority_changed",
   ASSIGNEE_CHANGED = "assignee_changed",
-  COMMENTED = "commented",
+  PRIORITY_CHANGED = "priority_changed",
+  DUE_DATE_CHANGED = "due_date_changed",
+  COMMENT_ADDED = "comment_added",
+  TASK_CANCELLED = "task_cancelled",
+  TASK_COMPLETED = "task_completed",
 }

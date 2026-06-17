@@ -48,10 +48,10 @@ export function canCreateTask(member: TeamMember): boolean {
 export function canUpdateTask(
   member: TeamMember,
   taskCreatedById: string,
-  taskAssigneeId: string | null
+  taskAssignedToUserId: string | null
 ): boolean {
   if (isAdminOrOwner(member.role)) return true;
   if (member.userId === taskCreatedById) return true;
-  if (member.userId === taskAssigneeId) return true;
+  if (member.userId === taskAssignedToUserId) return true;
   return false;
 }

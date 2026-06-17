@@ -3,6 +3,7 @@ import { zValidator } from "@hono/zod-validator";
 import { createTeamSchema, joinTeamSchema } from "@telegram-team/shared";
 import { TeamRole, MembershipStatus } from "@telegram-team/shared";
 import { createTeam, getTeamById, getTeamByInviteCode } from "../services/teams.service.js";
+import { listTeamBoard } from "../services/task.service.js";
 import { addTeamMember, getTeamMembers, getTeamMember, isTeamAdmin } from "../services/membership.service.js";
 import {
   createJoinRequest,
@@ -53,6 +54,20 @@ teamsRouter.get("/teams/:teamId/members", async (c) => {
   const { teamId } = c.req.param();
   const members = await getTeamMembers(teamId);
   return c.json({ members });
+});
+
+teamsRouter.get("/teams/:teamId/board", async (c) => {
+  const { teamId } = c.req.param();
+  const userId = getUserId(c);
+  if (userId) {
+    const member = await getTeamMember(teamId, userId);
+    if (!member) {
+      return c.json({ error: "Access denied" }, 403);
+    }
+  }
+
+  const columns = await listTeamBoard(teamId);
+  return c.json({ columns });
 });
 
 teamsRouter.post("/teams/join", zValidator("json", joinTeamSchema), async (c) => {

@@ -3,14 +3,15 @@ import type { TaskResponse } from "../../services/apiClient.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
-  in_progress: "In Progress",
+  doing: "Doing",
+  blocked: "Blocked",
   done: "Done",
   cancelled: "Cancelled",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {
   low: "Low",
-  medium: "Medium",
+  normal: "Normal",
   high: "High",
   urgent: "Urgent",
 };

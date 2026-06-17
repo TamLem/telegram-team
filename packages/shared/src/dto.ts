@@ -1,4 +1,4 @@
-import type { Task, TaskComment, Team, TeamMember, TeamJoinRequest, User } from "./types.js";
+import type { Task, TaskComment, TaskEvent, Team, TeamMember, TeamJoinRequest, User } from "./types.js";
 
 export interface CreateTeamDto {
   name: string;
@@ -27,10 +27,9 @@ export interface JoinRequestResponse {
 export interface CreateTaskDto {
   title: string;
   description?: string | null;
-  status?: string;
   priority?: string;
-  assigneeId?: string | null;
-  teamId?: string | null;
+  assignedToUserId?: string | null;
+  dueAt?: string | null;
 }
 
 export interface UpdateTaskDto {
@@ -38,7 +37,8 @@ export interface UpdateTaskDto {
   description?: string | null;
   status?: string;
   priority?: string;
-  assigneeId?: string | null;
+  assignedToUserId?: string | null;
+  dueAt?: string | null;
 }
 
 export interface TaskResponse {
@@ -52,8 +52,19 @@ export interface TasksListResponse {
   offset: number;
 }
 
+export interface BoardColumn {
+  status: string;
+  label: string;
+  tasks: Task[];
+  count: number;
+}
+
+export interface BoardResponse {
+  columns: BoardColumn[];
+}
+
 export interface CreateCommentDto {
-  content: string;
+  body: string;
 }
 
 export interface UserResponse {

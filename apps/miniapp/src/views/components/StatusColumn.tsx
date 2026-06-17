@@ -4,19 +4,21 @@ import { TaskCard } from "./TaskCard.js";
 
 const COLUMN_TITLES: Record<string, string> = {
   todo: "To Do",
-  in_progress: "In Progress",
+  doing: "Doing",
+  blocked: "Blocked",
   done: "Done",
   cancelled: "Cancelled",
 };
 
 export const StatusColumn: FC<{
   status: string;
+  label?: string;
   tasks: TaskResponse[];
-}> = ({ status, tasks }) => {
+}> = ({ status, label, tasks }) => {
   return (
     <div class="column">
       <div class="column-header">
-        <h3>{COLUMN_TITLES[status] ?? status}</h3>
+        <h3>{label ?? COLUMN_TITLES[status] ?? status}</h3>
         <span class="column-count">{tasks.length}</span>
       </div>
       {tasks.length === 0 ? (

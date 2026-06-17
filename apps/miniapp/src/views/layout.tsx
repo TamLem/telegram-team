@@ -35,11 +35,12 @@ body {
   line-height: 1.4;
 }
 .badge-todo { background: #e2e8f0; color: #475569; }
-.badge-in_progress { background: #dbeafe; color: #1d4ed8; }
+.badge-doing { background: #dbeafe; color: #1d4ed8; }
+.badge-blocked { background: #fef3c7; color: #b45309; }
 .badge-done { background: #dcfce7; color: #16a34a; }
 .badge-cancelled { background: #fce7f3; color: #be185d; }
 .badge-low { background: #e2e8f0; color: #475569; }
-.badge-medium { background: #fef3c7; color: #b45309; }
+.badge-normal { background: #f0fdf4; color: #16a34a; }
 .badge-high { background: #fee2e2; color: #dc2626; }
 .badge-urgent { background: #fce7f3; color: #be185d; }
 
