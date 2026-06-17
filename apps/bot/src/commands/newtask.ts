@@ -116,7 +116,7 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
         { text: "Blocked", callback_data: `task:status:blocked:${task.id}` },
         { text: "Done", callback_data: `task:status:done:${task.id}` },
       ],
-      [{ text: "Open Details", url: taskUrl }],
+      [{ text: "Open Details", web_app: { url: taskUrl } }],
     ],
   };
 

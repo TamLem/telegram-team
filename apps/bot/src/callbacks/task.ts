@@ -16,6 +16,10 @@ async function syncUser(user: { id: number; first_name: string; last_name?: stri
       telegramUsername: user.username ?? null,
     }),
   });
+  if (!res.ok) {
+    const err = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `API error ${res.status}`);
+  }
   const { user: apiUser } = (await res.json()) as { user: { id: string } };
   return apiUser;
 }
@@ -73,7 +77,7 @@ function statusKeyboard(taskId: string, currentStatus: string): InlineKeyboardMa
   return {
     inline_keyboard: [
       buttons,
-      [{ text: "Open Details", url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` }],
+      [{ text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` } }],
     ],
   };
 }
@@ -163,7 +167,7 @@ export async function taskCallback(
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "Open Details", url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` }],
+            [{ text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` } }],
           ],
         },
       }
@@ -174,7 +178,17 @@ export async function taskCallback(
   }
 
   if (action === "open" && taskId) {
-    await ctx.answerCallbackQuery(undefined, { url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` });
+    await ctx.reply(
+      `Tap below to open this task in the Mini App:`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "Open Task", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` } }],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
     return;
   }
 }

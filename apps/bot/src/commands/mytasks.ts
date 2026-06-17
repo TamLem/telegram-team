@@ -99,7 +99,7 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
             : []),
         ],
         [
-          { text: "Open Details", url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` },
+          { text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` } },
         ],
       ].filter((row) => row.length > 0),
     };
