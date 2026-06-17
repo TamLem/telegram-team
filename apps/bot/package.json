@@ -1,0 +1,27 @@
+{
+  "name": "@telegram-team/bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsx watch src/index.ts",
+    "dev:polling": "BOT_UPDATE_MODE=polling tsx watch src/index.ts",
+    "dev:webhook": "BOT_UPDATE_MODE=webhook tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "telegram:delete-webhook": "tsx scripts/deleteWebhook.ts",
+    "telegram:set-webhook": "tsx scripts/setWebhook.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@telegram-team/bot-engine": "workspace:*",
+    "@telegram-team/config": "workspace:*",
+    "@telegram-team/shared": "workspace:*",
+    "hono": "^4.5.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  }
+}

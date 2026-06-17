@@ -1,0 +1,22 @@
+{
+  "name": "telegram-team",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm build && tsx scripts/dev.ts",
+    "dev:no-tunnel": "tsx scripts/dev.ts --no-tunnel",
+    "build": "pnpm -r run build",
+    "clean": "pnpm -r run clean",
+    "db:migrate": "pnpm --filter @telegram-team/db run migrate",
+    "db:generate": "pnpm --filter @telegram-team/db run generate",
+    "db:push": "pnpm --filter @telegram-team/db run push",
+    "telegram:delete-webhook": "pnpm --filter @telegram-team/bot run telegram:delete-webhook",
+    "telegram:set-webhook": "pnpm --filter @telegram-team/bot run telegram:set-webhook"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild"]
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
