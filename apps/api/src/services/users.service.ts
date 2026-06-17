@@ -10,6 +10,13 @@ export async function findOrCreateTelegramUser(input: {
   lastName?: string | null;
   telegramUsername?: string | null;
 }): Promise<User> {
+  if (isNaN(input.telegramUserId) || input.telegramUserId <= 0) {
+    throw new Error("Invalid telegramUserId");
+  }
+  if (!input.firstName) {
+    throw new Error("firstName is required");
+  }
+
   const db = getDb();
 
   const [existing] = await db

@@ -38,7 +38,11 @@ usersRouter.get("/me/teams", async (c) => {
 });
 
 usersRouter.put("/users/telegram/:telegramUserId", async (c) => {
-  const telegramUserId = parseInt(c.req.param("telegramUserId"));
+  const rawId = c.req.param("telegramUserId");
+  const telegramUserId = parseInt(rawId);
+  if (isNaN(telegramUserId) || telegramUserId <= 0) {
+    return c.json({ error: "Invalid Telegram user ID" }, 400);
+  }
   const body = await c.req.json<{
     firstName: string;
     lastName?: string | null;
