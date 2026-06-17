@@ -1,16 +1,22 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadRootEnv, getEnv } from "@telegram-team/config";
+import { loadRootEnv } from "@telegram-team/config";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 
 loadRootEnv();
 
-const apiPort = getEnv("API_PORT", getEnv("PORT", "3001"));
-const miniappPort = getEnv("MINIAPP_PORT", getEnv("PORT", "3002"));
-const botPort = getEnv("BOT_PORT", getEnv("PORT", "3000"));
+function getPort(key: string, fallback: string): string {
+  const val = process.env[key];
+  if (!val || val.trim() === "") return fallback;
+  return val;
+}
+
+const apiPort = getPort("API_PORT", getPort("PORT", "3001"));
+const miniappPort = getPort("MINIAPP_PORT", getPort("PORT", "3002"));
+const botPort = getPort("BOT_PORT", getPort("PORT", "3000"));
 
 const env = { ...process.env };
 
@@ -106,7 +112,9 @@ async function main() {
   }
 
   const miniAppBaseUrl =
-    tunnelUrl ?? env.MINIAPP_BASE_URL ?? `http://localhost:${miniappPort}`;
+    tunnelUrl ??
+    (env.MINIAPP_BASE_URL?.trim() || undefined) ??
+    `http://localhost:${miniappPort}`;
 
   // 4. Start Bot
   const botMode = env.BOT_UPDATE_MODE ?? "polling";
