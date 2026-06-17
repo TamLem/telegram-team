@@ -115,7 +115,7 @@ export function createDb(dbUrl?: string) {
 
   const url =
     dbUrl ??
-    process.env.DATABASE_URL ??
+    (process.env.DATABASE_URL?.trim() || undefined) ??
     path.join(root, "data", "app.db");
 
   const dir = path.dirname(url);
