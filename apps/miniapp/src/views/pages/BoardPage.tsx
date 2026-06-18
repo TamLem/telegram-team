@@ -12,11 +12,13 @@ interface BoardColumn {
 export const BoardPage: FC<{
   teamId: string;
   columns: BoardColumn[];
-}> = ({ teamId, columns }) => {
+  ctx?: string;
+}> = ({ teamId, columns, ctx }) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
       <div class="header">
-        <a href="/app/tasks/mine" class="back-link">
+        <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
           &larr; My Tasks
         </a>
         <h1>Task Board</h1>

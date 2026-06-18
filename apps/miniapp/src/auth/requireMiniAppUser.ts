@@ -1,18 +1,23 @@
 import type { MiddlewareHandler } from "hono";
-import { getCookie } from "hono/cookie";
+import { getCookie, setCookie } from "hono/cookie";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getEnv, getEnvOptional } from "@telegram-team/config";
+import {
+  verifySignedMiniAppContext,
+  type MiniAppContext,
+} from "@telegram-team/shared";
 import { validateTelegramInitData, type TelegramUser } from "./validateTelegramInitData.js";
 import { getOrCreateUser, getUserTeams } from "../services/apiClient.js";
 
 export interface AppVariables {
   telegramUser: TelegramUser;
   apiUser: { id: string };
-  hasTeam: boolean;
+  ctx: MiniAppContext;
   teams: Array<{ id: string; name: string; role: string }>;
 }
 
 const SESSION_COOKIE = "ttp_session";
-const SESSION_MAX_AGE_SECONDS = 86_400;
+const SESSION_MAX_AGE_SECONDS = 15 * 60;
 
 interface MiniAppSession {
   user: TelegramUser;
@@ -20,7 +25,11 @@ interface MiniAppSession {
 }
 
 function sessionSecret(): string {
-  return process.env.MINIAPP_SESSION_SECRET ?? process.env.BOT_TOKEN ?? "";
+  return (
+    getEnvOptional("MINIAPP_CONTEXT_SECRET") ??
+    getEnvOptional("MINIAPP_SESSION_SECRET") ??
+    getEnv("BOT_TOKEN")
+  );
 }
 
 function sign(value: string, secret: string): string {
@@ -37,10 +46,6 @@ function decodeBase64Url(value: string): string {
 
 export function createMiniAppSessionCookie(user: TelegramUser): string {
   const secret = sessionSecret();
-  if (!secret) {
-    throw new Error("Missing Mini App session secret");
-  }
-
   const payload = encodeBase64Url(
     JSON.stringify({
       user,
@@ -50,7 +55,9 @@ export function createMiniAppSessionCookie(user: TelegramUser): string {
   return `${payload}.${sign(payload, secret)}`;
 }
 
-function readMiniAppSessionCookie(cookie: string | undefined): TelegramUser | null {
+function readMiniAppSessionCookie(
+  cookie: string | undefined
+): TelegramUser | null {
   const secret = sessionSecret();
   if (!cookie || !secret) return null;
 
@@ -97,94 +104,157 @@ async function attachTelegramUser(c: any, telegramUser: TelegramUser) {
   try {
     const teams = await getUserTeams(apiUser.id);
     c.set("teams", teams);
-    c.set("hasTeam", teams.length > 0);
   } catch {
     c.set("teams", []);
-    c.set("hasTeam", false);
   }
 }
 
-export function requireMiniAppUser(): MiddlewareHandler<{
+function renderBootstrapPage(ctxToken: string): Response {
+  const body = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<title>Opening Task Manager</title>
+</head>
+<body>
+<script>
+(async function () {
+  var app = window.Telegram && window.Telegram.WebApp;
+  var ctx = ${JSON.stringify(ctxToken)};
+  if (!app || !app.initData) {
+    document.body.textContent = "Open this app from Telegram.";
+    return;
+  }
+  try {
+    var res = await fetch("/app/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        initData: app.initData,
+        ctx: ctx,
+      }),
+    });
+    if (!res.ok) {
+      var err = await res.json().catch(function () { return {}; });
+      document.body.textContent = err.error || "Authentication failed.";
+      return;
+    }
+    var data = await res.json();
+    window.location.href = data.redirect;
+  } catch (e) {
+    document.body.textContent = "Connection error. Please try again.";
+  }
+})();
+</script>
+</body>
+</html>`;
+  return new Response(body, {
+    headers: { "content-type": "text/html; charset=UTF-8" },
+  });
+}
+
+export function requireMiniAppContext(): MiddlewareHandler<{
   Variables: AppVariables;
 }> {
   return async (c, next) => {
-    const initData =
-      c.req.query("tgWebAppData") ??
-      c.req.header("X-Telegram-Init-Data") ??
-      "";
+    const ctxToken = c.req.query("ctx") ?? "";
 
-    const isDev = process.env.NODE_ENV !== "production";
+    if (!ctxToken) {
+      return c.json({ error: "Missing context token" }, 400);
+    }
 
-    if (isDev && !initData) {
-      const devUserId = parseInt(
-        process.env.MINIAPP_DEV_USER_ID ?? "12345"
+    const ctx = verifySignedMiniAppContext(ctxToken);
+    if (!ctx) {
+      return c.html(
+        `<!doctype html><html><body><p>This action link is invalid or expired. Please open it again from Telegram.</p></body></html>`,
+        403
       );
-
-      c.set("telegramUser", {
-        id: devUserId,
-        first_name: "Dev",
-        username: "dev_user",
-      });
-
-      try {
-        const apiUser = await getOrCreateUser(devUserId, {
-          firstName: "Dev",
-          username: "dev_user",
-        });
-        c.set("apiUser", { id: apiUser.id });
-
-        try {
-          const teams = await getUserTeams(apiUser.id);
-          c.set("teams", teams);
-          c.set("hasTeam", teams.length > 0);
-        } catch {
-          c.set("teams", []);
-          c.set("hasTeam", false);
-        }
-      } catch {
-        c.set("apiUser", { id: "dev-user-id" });
-        c.set("teams", []);
-        c.set("hasTeam", false);
-      }
-
-      return next();
     }
 
     const sessionUser = readMiniAppSessionCookie(getCookie(c, SESSION_COOKIE));
-    if (sessionUser) {
-      try {
-        await attachTelegramUser(c, sessionUser);
-        return next();
-      } catch (err) {
-        console.error("[miniapp] session user sync error:", err);
-        return c.json({ error: "Failed to sync user" }, 500);
-      }
+
+    if (!sessionUser) {
+      return renderBootstrapPage(ctxToken);
     }
 
-    if (!initData) {
-      return c.json({ error: "Missing Telegram init data" }, 401);
-    }
-
-    const botToken = process.env.BOT_TOKEN ?? "";
-    if (!botToken) {
-      return c.json({ error: "Server misconfigured" }, 500);
-    }
-
-    const result = validateTelegramInitData(initData, botToken);
-
-    if (!result.valid || !result.user) {
-      return c.json({ error: "Invalid init data" }, 403);
+    if (sessionUser.id !== ctx.telegramUserId) {
+      return c.html(
+        `<!doctype html><html><body><p>This action link belongs to another Telegram user.</p></body></html>`,
+        403
+      );
     }
 
     try {
-      await attachTelegramUser(c, result.user);
+      await attachTelegramUser(c, sessionUser);
     } catch (err) {
       console.error("[miniapp] user sync error:", err);
       return c.json({ error: "Failed to sync user" }, 500);
     }
 
+    c.set("ctx", ctx);
     return next();
   };
+}
+
+import type { Hono } from "hono";
+
+export function setupAuthRoutes(app: Hono) {
+  app.post("/auth", async (c) => {
+    const body = await c.req.json<{ initData: string; ctx: string }>();
+
+    const ctx = verifySignedMiniAppContext(body.ctx ?? "");
+    if (!ctx) {
+      return c.json({ error: "Invalid or expired context" }, 403);
+    }
+
+    const botToken = getEnv("BOT_TOKEN");
+    const result = validateTelegramInitData(body.initData ?? "", botToken);
+
+    if (!result.valid || !result.user) {
+      return c.json({ error: "Invalid Telegram init data" }, 403);
+    }
+
+    if (result.user.id !== ctx.telegramUserId) {
+      return c.json(
+        { error: "This action link belongs to another Telegram user." },
+        403
+      );
+    }
+
+    setCookie(c, SESSION_COOKIE, createMiniAppSessionCookie(result.user), {
+      httpOnly: true,
+      secure: getEnvOptional("NODE_ENV") === "production",
+      sameSite: "Lax",
+      path: "/app",
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    });
+
+    const redirectPath = actionToPath(ctx);
+    return c.json({
+      redirect: `${redirectPath}?ctx=${body.ctx}`,
+    });
+  });
+}
+
+function actionToPath(ctx: MiniAppContext): string {
+  switch (ctx.action) {
+    case "create_task":
+      return "/app/tasks/new";
+    case "view_task":
+    case "edit_task":
+    case "assign_task":
+    case "change_status":
+    case "add_comment":
+      return `/app/tasks/${ctx.taskId}`;
+    case "view_board":
+      return `/app/board/${ctx.teamId}`;
+    case "view_my_tasks":
+      return "/app/tasks/mine";
+    default:
+      return "/app/tasks/mine";
+  }
 }
 
 export { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS };

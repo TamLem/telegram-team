@@ -62,8 +62,15 @@ export function validateEnv<T extends z.ZodTypeAny>(
   return result.data;
 }
 
+function resolveEnvValue(key: string): string | undefined {
+  const value = process.env[key];
+  if (value === undefined) return undefined;
+  const trimmed = value.trim();
+  return trimmed === "" ? undefined : value;
+}
+
 export function getEnv(key: string, fallback?: string): string {
-  const value = process.env[key] ?? fallback;
+  const value = resolveEnvValue(key) ?? fallback;
   if (value === undefined) {
     throw new Error(`Missing required environment variable: ${key}`);
   }
@@ -71,5 +78,5 @@ export function getEnv(key: string, fallback?: string): string {
 }
 
 export function getEnvOptional(key: string): string | undefined {
-  return process.env[key] ?? undefined;
+  return resolveEnvValue(key);
 }

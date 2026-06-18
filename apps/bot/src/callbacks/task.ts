@@ -1,30 +1,11 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { syncUser, apiFetch, getActiveTeams } from "../apiClient.js";
 import { escapeHtml } from "../telegram/html.js";
-import { miniAppLaunchUrl } from "../telegram/webApp.js";
+import { miniAppContextUrl } from "../telegram/webApp.js";
 
-const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
-
-async function syncUser(user: { id: number; first_name: string; last_name?: string; username?: string }) {
-  const res = await fetch(`${API_BASE_URL}/api/users/telegram/${user.id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      telegramUserId: user.id,
-      firstName: user.first_name,
-      lastName: user.last_name ?? null,
-      telegramUsername: user.username ?? null,
-    }),
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `API error ${res.status}`);
-  }
-  const { user: apiUser } = (await res.json()) as { user: { id: string } };
-  return apiUser;
-}
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "Todo",
@@ -86,7 +67,12 @@ function buildTaskCard(task: {
   );
 }
 
-function statusKeyboard(taskId: string, currentStatus: string): InlineKeyboardMarkup {
+async function buildTaskKeyboard(
+  taskId: string,
+  currentStatus: string,
+  from: { id: number; first_name: string; last_name?: string; username?: string },
+  chatId: number
+): Promise<InlineKeyboardMarkup> {
   const buttons: { text: string; callback_data: string }[] = [];
 
   if (currentStatus === "todo") {
@@ -99,17 +85,30 @@ function statusKeyboard(taskId: string, currentStatus: string): InlineKeyboardMa
     buttons.push({ text: "Done", callback_data: `task:status:done:${taskId}` });
   }
 
-  return {
-    inline_keyboard: [
-      buttons,
-      [{ text: "Open Details", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${taskId}`) } }],
-    ],
-  };
+  const apiUser = await syncUser(from);
+  const teams = await getActiveTeams(apiUser.id);
+  const teamId = teams[0]?.id;
+
+  const detailUrl = teamId
+    ? miniAppContextUrl(MINIAPP_BASE_URL, {
+        action: "view_task",
+        telegramUserId: from.id,
+        teamId,
+        returnChatId: chatId,
+        taskId,
+      })
+    : undefined;
+
+  const rows: InlineKeyboardMarkup["inline_keyboard"] = [];
+  if (buttons.length > 0) rows.push(buttons);
+  if (detailUrl) rows.push([{ text: "Open Details", web_app: { url: detailUrl } }]);
+
+  return { inline_keyboard: rows };
 }
 
 export async function taskCallback(
   ctx: BotContext,
-  match: RegExpMatchArray | null
+  _match: RegExpMatchArray | null
 ): Promise<void> {
   const data = ctx.callbackData;
   if (!data) {
@@ -119,6 +118,9 @@ export async function taskCallback(
 
   const from = ctx.from;
   if (!from) return;
+
+  const chatId = ctx.chatId;
+  if (!chatId) return;
 
   const parsed = parseTaskCallbackData(data);
   if (!parsed?.taskId) {
@@ -131,93 +133,79 @@ export async function taskCallback(
   const apiUser = await syncUser(from);
 
   if (action === "status" && subAction) {
-    const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/status`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": apiUser.id,
-      },
-      body: JSON.stringify({ status: subAction }),
-    });
+    try {
+      const { task } = await apiFetch<{
+        task: {
+          id: string;
+          title: string;
+          status: string;
+          priority: string;
+          assignedToUserId: string | null;
+          dueAt: string | null;
+        };
+      }>(`/api/tasks/${taskId}/status`, {
+        method: "POST",
+        headers: { "X-User-Id": apiUser.id },
+        body: JSON.stringify({ status: subAction }),
+      });
 
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      await ctx.answerCallbackQuery(err.error ?? "Failed to update");
-      return;
+      const card = buildTaskCard(task);
+      const keyboard = await buildTaskKeyboard(task.id, task.status, from, chatId);
+
+      await ctx.editMessageText(card, { reply_markup: keyboard });
+      await ctx.answerCallbackQuery(`Marked as ${STATUS_LABELS[subAction] ?? subAction}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update";
+      await ctx.answerCallbackQuery(message);
     }
-
-    const { task } = (await res.json()) as {
-      task: {
-        id: string;
-        title: string;
-        status: string;
-        priority: string;
-        assignedToUserId: string | null;
-        dueAt: string | null;
-      };
-    };
-
-    const card = buildTaskCard(task);
-    const keyboard = statusKeyboard(task.id, task.status);
-
-    await ctx.editMessageText(card, { reply_markup: keyboard });
-    await ctx.answerCallbackQuery(`Marked as ${STATUS_LABELS[subAction] ?? subAction}`);
     return;
   }
 
   if (action === "done" && taskId) {
-    const res = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/status`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-User-Id": apiUser.id,
-      },
-      body: JSON.stringify({ status: "done" }),
-    });
+    try {
+      const { task } = await apiFetch<{
+        task: {
+          id: string;
+          title: string;
+          status: string;
+          priority: string;
+          assignedToUserId: string | null;
+          dueAt: string | null;
+        };
+      }>(`/api/tasks/${taskId}/status`, {
+        method: "POST",
+        headers: { "X-User-Id": apiUser.id },
+        body: JSON.stringify({ status: "done" }),
+      });
 
-    if (!res.ok) {
-      const err = (await res.json().catch(() => ({}))) as { error?: string };
-      await ctx.answerCallbackQuery(err.error ?? "Failed to update task");
-      return;
+      const keyboard = await buildTaskKeyboard(task.id, task.status, from, chatId);
+      await ctx.editMessageText(buildTaskCard(task), { reply_markup: keyboard });
+      await ctx.answerCallbackQuery("Marked as done!");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to update task";
+      await ctx.answerCallbackQuery(message);
     }
-
-    const { task } = (await res.json()) as {
-      task: {
-        id: string;
-        title: string;
-        status: string;
-        priority: string;
-        assignedToUserId: string | null;
-        dueAt: string | null;
-      };
-    };
-
-    await ctx.editMessageText(
-      buildTaskCard(task),
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Open Details", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${task.id}`) } }],
-          ],
-        },
-      }
-    );
-
-    await ctx.answerCallbackQuery("Marked as done!");
     return;
   }
 
   if (action === "open" && taskId) {
-    await ctx.reply(
-      `Tap below to open this task in the Mini App:`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "Open Task", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${taskId}`) } }],
-          ],
-        },
-      }
-    );
+    const teams = await getActiveTeams(apiUser.id);
+    if (teams.length === 0) {
+      await ctx.answerCallbackQuery("No team found");
+      return;
+    }
+    const url = miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "view_task",
+      telegramUserId: from.id,
+      teamId: teams[0].id,
+      returnChatId: chatId,
+      taskId,
+    });
+    await ctx.reply(`Tap below to open this task:`, {
+      reply_markup: {
+        inline_keyboard: [[{ text: "Open Task", web_app: { url } }]],
+      },
+    });
     await ctx.answerCallbackQuery();
     return;
   }

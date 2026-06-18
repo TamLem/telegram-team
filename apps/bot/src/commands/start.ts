@@ -1,53 +1,11 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
-import { setUserState } from "../callbacks/onboarding.js";
+import { syncUser, getActiveTeams } from "../apiClient.js";
+import { miniAppContextUrl } from "../telegram/webApp.js";
 import { escapeHtml } from "../telegram/html.js";
 
-const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
-
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `API error ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-async function syncUser(user: { id: number; first_name: string; last_name?: string; username?: string }) {
-  const { user: apiUser } = await apiFetch<{ user: { id: string } }>(
-    `/api/users/telegram/${user.id}`,
-    {
-      method: "PUT",
-      body: JSON.stringify({
-        telegramUserId: user.id,
-        firstName: user.first_name,
-        lastName: user.last_name ?? null,
-        telegramUsername: user.username ?? null,
-      }),
-    }
-  );
-  return apiUser;
-}
-
-async function getActiveTeams(userId: string) {
-  try {
-    const { teams } = await apiFetch<{ teams: Array<{ id: string; name: string; inviteCode: string; role: string }> }>(
-      `/api/me/teams`,
-      { headers: { "X-User-Id": userId } }
-    );
-    return teams;
-  } catch {
-    return [];
-  }
-}
+const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 
 const ONBOARDING_KEYBOARD: InlineKeyboardMarkup = {
   inline_keyboard: [
@@ -64,10 +22,7 @@ export async function startCommand(ctx: BotContext): Promise<void> {
   if (!chatId) return;
 
   const apiUser = await syncUser(from);
-
   const teams = await getActiveTeams(apiUser.id);
-
-  setUserState(chatId, "apiUserId", apiUser.id);
 
   if (teams.length === 0) {
     const firstName = escapeHtml(from.first_name);
@@ -80,13 +35,44 @@ export async function startCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  setUserState(chatId, "activeTeamId", teams[0].id);
-
+  const team = teams[0];
   const teamList = teams.map((t) => `  • ${escapeHtml(t.name)}`).join("\n");
+
+  const myTasksUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+    action: "view_my_tasks",
+    telegramUserId: from.id,
+    teamId: team.id,
+    returnChatId: chatId,
+  });
+
+  const boardUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+    action: "view_board",
+    telegramUserId: from.id,
+    teamId: team.id,
+    returnChatId: chatId,
+  });
+
+  const newTaskUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+    action: "create_task",
+    telegramUserId: from.id,
+    teamId: team.id,
+    returnChatId: chatId,
+  });
+
+  const keyboard: InlineKeyboardMarkup = {
+    inline_keyboard: [
+      [
+        { text: "New Task", web_app: { url: newTaskUrl } },
+        { text: "My Tasks", web_app: { url: myTasksUrl } },
+      ],
+      [{ text: "Open Board", web_app: { url: boardUrl } }],
+    ],
+  };
 
   await ctx.reply(
     `Welcome back! 👋\n\n` +
       `<b>Your teams:</b>\n${teamList}\n\n` +
-      `Use /newtask to create a task, /mytasks to see your work, or /board to open the Kanban board.`
+      `Use the buttons below or the commands /newtask, /mytasks, /board.`,
+    { reply_markup: keyboard }
   );
 }

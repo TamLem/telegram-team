@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireMiniAppUser } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
 import { MyTasksPage } from "../views/pages/MyTasksPage.js";
 import { TaskDetailPage } from "../views/pages/TaskDetailPage.js";
 import { NewTaskPage } from "../views/pages/NewTaskPage.js";
@@ -11,37 +11,31 @@ import {
   createTask,
   updateTaskStatus,
 } from "../services/apiClient.js";
+import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
-const tasksRoutes = new Hono<{
-  Variables: {
-    telegramUser: any;
-    apiUser: { id: string };
-    hasTeam: boolean;
-    teams: any[];
-  };
-}>();
+const tasksRoutes = new Hono<{ Variables: AppVariables }>();
 
-tasksRoutes.use("*", requireMiniAppUser());
+tasksRoutes.use("*", requireMiniAppContext());
 
 tasksRoutes.get("/tasks/mine", async (c) => {
   const apiUser = c.get("apiUser");
-  const hasTeam = c.get("hasTeam");
+  const ctx = c.get("ctx");
   const tgUser = c.get("telegramUser");
 
-  if (!hasTeam) {
-    return c.redirect("/app/onboarding");
-  }
+  const tasks = await getMyTasks(apiUser.id, ctx.teamId);
 
-  const tasks = await getMyTasks(apiUser.id);
+  return c.render(<MyTasksPage tasks={tasks} username={tgUser.first_name} ctx={c.req.query("ctx")} />);
+});
 
-  return c.render(
-    <MyTasksPage tasks={tasks} username={tgUser.first_name} />
-  );
+tasksRoutes.get("/tasks/new", async (c) => {
+  const ctx = c.get("ctx");
+  return c.render(<NewTaskPage teamId={ctx.teamId} ctx={c.req.query("ctx")} />);
 });
 
 tasksRoutes.get("/tasks/:id", async (c) => {
   const { id } = c.req.param();
   const apiUser = c.get("apiUser");
+
   const task = await getTask(id, apiUser.id);
 
   let comments: any[] = [];
@@ -57,26 +51,13 @@ tasksRoutes.get("/tasks/:id", async (c) => {
   }
 
   return c.render(
-    <TaskDetailPage task={task} comments={comments} events={events} />
+    <TaskDetailPage task={task} comments={comments} events={events} ctx={c.req.query("ctx")} />
   );
-});
-
-tasksRoutes.get("/new-task", async (c) => {
-  const hasTeam = c.get("hasTeam");
-  if (!hasTeam) {
-    return c.redirect("/app/onboarding");
-  }
-  return c.render(<NewTaskPage />);
 });
 
 tasksRoutes.post("/tasks", async (c) => {
   const apiUser = c.get("apiUser");
-  const hasTeam = c.get("hasTeam");
-  const teams = c.get("teams");
-
-  if (!hasTeam || !teams || teams.length === 0) {
-    return c.redirect("/app/onboarding");
-  }
+  const ctx = c.get("ctx");
 
   const body = await c.req.parseBody<{
     title: string;
@@ -86,7 +67,7 @@ tasksRoutes.post("/tasks", async (c) => {
   }>();
 
   if (!body.title || body.title.trim().length === 0) {
-    return c.render(<NewTaskPage />);
+    return c.render(<NewTaskPage teamId={ctx.teamId} ctx={c.req.query("ctx")} error="Title is required" />);
   }
 
   const task = await createTask({
@@ -94,11 +75,11 @@ tasksRoutes.post("/tasks", async (c) => {
     description: body.description ?? null,
     priority: body.priority ?? "normal",
     dueAt: body.dueAt || null,
-    teamId: teams[0].id,
+    teamId: ctx.teamId,
     createdById: apiUser.id,
   });
 
-  return c.redirect(`/app/tasks/${task.id}`);
+  return c.redirect(`/app/tasks/${task.id}?ctx=${c.req.query("ctx")}`);
 });
 
 tasksRoutes.post("/tasks/:id/status", async (c) => {
@@ -110,7 +91,7 @@ tasksRoutes.post("/tasks/:id/status", async (c) => {
     await updateTaskStatus(id, body.status, apiUser.id);
   }
 
-  return c.redirect(`/app/tasks/${id}`);
+  return c.redirect(`/app/tasks/${id}?ctx=${c.req.query("ctx")}`);
 });
 
 export { tasksRoutes };

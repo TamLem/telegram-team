@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3001";
+import { getEnv } from "@telegram-team/config";
+
+const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 
 export interface UserResponse {
   id: string;
@@ -139,11 +141,13 @@ export async function joinTeam(userId: string, inviteCode: string): Promise<Join
   return res.request;
 }
 
-export async function getMyTasks(userId: string): Promise<TaskResponse[]> {
-  const res = await apiFetch<{ tasks: TaskResponse[] }>(
-    `/api/tasks?assigned_to=me&limit=50`,
-    { headers: { "X-User-Id": userId } }
-  );
+export async function getMyTasks(userId: string, teamId?: string): Promise<TaskResponse[]> {
+  const path = teamId
+    ? `/api/tasks?assigned_to=me&team_id=${teamId}&limit=50`
+    : `/api/tasks?assigned_to=me&limit=50`;
+  const res = await apiFetch<{ tasks: TaskResponse[] }>(path, {
+    headers: { "X-User-Id": userId },
+  });
   return res.tasks;
 }
 

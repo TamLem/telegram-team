@@ -1,31 +1,20 @@
 import { Hono } from "hono";
-import { requireMiniAppUser } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
 import { BoardPage } from "../views/pages/BoardPage.js";
 import { getBoard } from "../services/apiClient.js";
+import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
-const boardRoutes = new Hono<{
-  Variables: {
-    telegramUser: any;
-    apiUser: { id: string };
-    hasTeam: boolean;
-    teams: any[];
-  };
-}>();
+const boardRoutes = new Hono<{ Variables: AppVariables }>();
 
-boardRoutes.use("*", requireMiniAppUser());
+boardRoutes.use("*", requireMiniAppContext());
 
 boardRoutes.get("/board/:teamId", async (c) => {
   const { teamId } = c.req.param();
   const apiUser = c.get("apiUser");
-  const hasTeam = c.get("hasTeam");
-
-  if (!hasTeam) {
-    return c.redirect("/app/onboarding");
-  }
 
   const { columns } = await getBoard(teamId, apiUser.id);
 
-  return c.render(<BoardPage teamId={teamId} columns={columns} />);
+  return c.render(<BoardPage teamId={teamId} columns={columns} ctx={c.req.query("ctx")} />);
 });
 
 export { boardRoutes };

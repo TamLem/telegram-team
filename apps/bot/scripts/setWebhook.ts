@@ -1,11 +1,11 @@
-import { getEnv } from "@telegram-team/config";
+import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { TelegramApi } from "@telegram-team/bot-engine";
 import { BOT_COMMANDS } from "../src/interactions.js";
 import { logError } from "../src/logger.js";
 
 const token = getEnv("BOT_TOKEN");
 const webhookUrl = getEnv("BOT_WEBHOOK_URL");
-const secretToken = process.env.BOT_WEBHOOK_SECRET;
+const secretToken = getEnvOptional("BOT_WEBHOOK_SECRET");
 
 const api = new TelegramApi(token);
 

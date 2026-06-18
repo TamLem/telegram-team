@@ -1,12 +1,11 @@
-import { getEnv } from "@telegram-team/config";
+import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { TelegramApi } from "@telegram-team/bot-engine";
 import { logError } from "../src/logger.js";
 
 const token = getEnv("BOT_TOKEN");
 const api = new TelegramApi(token);
 
-const dropPending =
-  process.env.DROP_PENDING_UPDATES === "true";
+const dropPending = getEnvOptional("DROP_PENDING_UPDATES") === "true";
 
 api
   .deleteWebhook({ drop_pending_updates: dropPending })

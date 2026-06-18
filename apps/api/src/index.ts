@@ -14,9 +14,7 @@ app.route("/api", tasksRouter);
 app.route("/api", teamsRouter);
 app.route("/api", usersRouter);
 
-const port = parseInt(
-  process.env.API_PORT ?? getEnv("PORT", "3001")
-);
+const port = parseInt(getEnv("API_PORT", getEnv("PORT", "3001")));
 
 createDb();
 

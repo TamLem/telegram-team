@@ -59,11 +59,14 @@ export const TaskDetailPage: FC<{
   task: TaskResponse | null;
   comments?: Array<{ id: string; body: string; userId: string; createdAt: string; user?: { firstName: string; telegramUsername: string | null } | null }>;
   events?: Array<{ id: string; eventType: string; actorUserId: string; oldValue: string | null; newValue: string | null; createdAt: string }>;
-}> = ({ task, comments, events }) => {
+  ctx?: string;
+}> = ({ task, comments, events, ctx }) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+
   if (!task) {
     return (
       <div>
-        <a href="/app/tasks/mine" class="back-link">
+        <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
           &larr; Back
         </a>
         <div class="empty-state">
@@ -79,7 +82,7 @@ export const TaskDetailPage: FC<{
 
   return (
     <div>
-      <a href="/app/tasks/mine" class="back-link">
+      <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
         &larr; Back to My Tasks
       </a>
 
@@ -136,10 +139,11 @@ export const TaskDetailPage: FC<{
             {actions.map((action) => (
               <form
                 method="post"
-                action={`/app/tasks/${task.id}/status`}
+                action={`/app/tasks/${task.id}/status${ctxQuery}`}
                 style="display: inline;"
               >
                 <input type="hidden" name="status" value={action.newStatus} />
+                <input type="hidden" name="ctx" value={ctx ?? ""} />
                 <Button type="submit" variant={action.variant}>
                   {action.label}
                 </Button>

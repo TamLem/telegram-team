@@ -1,10 +1,15 @@
 import type { FC } from "hono/jsx";
 import { Button } from "../components/Button.js";
 
-export const NewTaskPage: FC = () => {
+export const NewTaskPage: FC<{ teamId: string; ctx?: string; error?: string }> = ({
+  teamId,
+  ctx,
+  error,
+}) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
-      <a href="/app/tasks/mine" class="back-link">
+      <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
         &larr; Back
       </a>
 
@@ -13,7 +18,13 @@ export const NewTaskPage: FC = () => {
       </div>
 
       <div class="card">
-        <form method="post" action="/app/tasks">
+        <form method="post" action={`/app/tasks${ctxQuery}`}>
+          <input type="hidden" name="ctx" value={ctx ?? ""} />
+          {error && (
+            <p style="color: var(--tg-theme-destructive-text-color, #dc2626); margin-bottom: 12px; font-size: 14px;">
+              {error}
+            </p>
+          )}
           <div class="form-group">
             <label class="form-label" for="title">
               Title *

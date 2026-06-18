@@ -6,7 +6,9 @@ import { EmptyState } from "../components/EmptyState.js";
 export const MyTasksPage: FC<{
   tasks: TaskResponse[];
   username: string;
-}> = ({ tasks, username }) => {
+  ctx?: string;
+}> = ({ tasks, ctx }) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
       <div class="header">
@@ -19,14 +21,14 @@ export const MyTasksPage: FC<{
           title="No Tasks Yet"
           description="Use the bot command /newtask to create your first task."
         >
-          <a href="/app/new-task" class="btn">
+          <a href={`/app/tasks/new${ctxQuery}`} class="btn">
             Create Task
           </a>
         </EmptyState>
       ) : (
         <div>
           {tasks.map((task) => (
-            <TaskCard task={task} />
+            <TaskCard task={task} ctx={ctx} />
           ))}
         </div>
       )}

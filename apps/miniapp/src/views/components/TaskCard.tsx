@@ -16,10 +16,11 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: "Urgent",
 };
 
-export const TaskCard: FC<{ task: TaskResponse }> = ({ task }) => {
+export const TaskCard: FC<{ task: TaskResponse; ctx?: string }> = ({ task, ctx }) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <a
-      href={`/app/tasks/${task.id}`}
+      href={`/app/tasks/${task.id}${ctxQuery}`}
       style="text-decoration: none; color: inherit; display: block;"
     >
       <div class="card">
