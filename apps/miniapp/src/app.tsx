@@ -4,6 +4,7 @@ import { Layout } from "./views/layout.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { boardRoutes } from "./routes/board.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { teamRoutes } from "./routes/teams.js";
 import { launchRoutes } from "./routes/launch.js";
 import type { AppVariables } from "./auth/requireMiniAppUser.js";
 
@@ -20,5 +21,6 @@ app.route("/app", launchRoutes);
 app.route("/app", onboardingRoutes);
 app.route("/app", tasksRoutes);
 app.route("/app", boardRoutes);
+app.route("/app", teamRoutes);
 
 export default app;

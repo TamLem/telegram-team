@@ -1,6 +1,6 @@
 import { getDb } from "@telegram-team/db";
 import { teamMembers, users as usersTable, teams as teamsTable } from "@telegram-team/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or } from "drizzle-orm";
 import { generateId, TeamRole, MembershipStatus } from "@telegram-team/shared";
 import type { TeamMember, User, Team } from "@telegram-team/shared";
 
@@ -149,4 +149,75 @@ export async function isTeamAdmin(
 export async function hasActiveTeam(userId: string): Promise<boolean> {
   const memberships = await getUserActiveMemberships(userId);
   return memberships.length > 0;
+}
+
+export async function removeTeamMember(
+  teamId: string,
+  userId: string
+): Promise<TeamMember> {
+  const db = getDb();
+  const [updated] = await db
+    .update(teamMembers)
+    .set({
+      status: MembershipStatus.REMOVED,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      and(
+        eq(teamMembers.teamId, teamId),
+        eq(teamMembers.userId, userId),
+        eq(teamMembers.status, MembershipStatus.ACTIVE)
+      )
+    )
+    .returning();
+  if (!updated) throw new Error("Member not found");
+  return updated;
+}
+
+export async function updateMemberRole(
+  teamId: string,
+  userId: string,
+  role: string
+): Promise<TeamMember> {
+  const db = getDb();
+  const [updated] = await db
+    .update(teamMembers)
+    .set({ role, updatedAt: new Date().toISOString() })
+    .where(
+      and(
+        eq(teamMembers.teamId, teamId),
+        eq(teamMembers.userId, userId),
+        eq(teamMembers.status, MembershipStatus.ACTIVE)
+      )
+    )
+    .returning();
+  if (!updated) throw new Error("Member not found");
+  return updated;
+}
+
+export async function getAdminsForTeam(
+  teamId: string
+): Promise<TeamMember[]> {
+  const db = getDb();
+  return db
+    .select()
+    .from(teamMembers)
+    .where(
+      and(
+        eq(teamMembers.teamId, teamId),
+        eq(teamMembers.status, MembershipStatus.ACTIVE),
+        or(
+          eq(teamMembers.role, TeamRole.OWNER),
+          eq(teamMembers.role, TeamRole.ADMIN)
+        )
+      )
+    );
+}
+
+export async function resolveActiveTeamForUser(
+  userId: string
+): Promise<(TeamMember & { team: Team }) | null> {
+  const teams = await getUserActiveTeams(userId);
+  if (teams.length === 0) return null;
+  return teams[0];
 }

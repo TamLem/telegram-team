@@ -2,9 +2,22 @@ import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createTeamSchema, joinTeamSchema } from "@telegram-team/shared";
 import { TeamRole, MembershipStatus } from "@telegram-team/shared";
-import { createTeam, getTeamById, getTeamByInviteCode } from "../services/teams.service.js";
+import {
+  createTeam,
+  getTeamById,
+  getTeamByInviteCode,
+  updateTeamName,
+  regenerateInviteCode,
+} from "../services/teams.service.js";
 import { listTeamBoard } from "../services/task.service.js";
-import { addTeamMember, getTeamMembers, getTeamMember } from "../services/membership.service.js";
+import {
+  addTeamMember,
+  getTeamMembers,
+  getTeamMember,
+  removeTeamMember,
+  updateMemberRole,
+  getAdminsForTeam,
+} from "../services/membership.service.js";
 import {
   createJoinRequest,
   getJoinRequestById,
@@ -14,6 +27,8 @@ import {
 } from "../services/joinRequests.service.js";
 import { requireAdmin, isAdminOrOwner } from "../services/authorization.service.js";
 import { getUserById } from "../services/users.service.js";
+import { createNotification } from "../services/notification.service.js";
+import type { NotificationPayload } from "@telegram-team/shared";
 
 export const teamsRouter = new Hono();
 
@@ -68,6 +83,34 @@ teamsRouter.get("/teams/:teamId", async (c) => {
     }
   }
 
+  const memberCount = (await getTeamMembers(teamId)).length;
+  const pendingRequests = member && isAdminOrOwner(member.role)
+    ? (await getJoinRequestsForTeam(teamId)).length
+    : 0;
+
+  return c.json({ team, memberCount, pendingRequestCount: pendingRequests });
+});
+
+teamsRouter.patch("/teams/:teamId", async (c) => {
+  const { teamId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const member = await getTeamMember(teamId, userId);
+  try {
+    requireAdmin(member);
+  } catch {
+    return c.json({ error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  if (!body.name || typeof body.name !== "string" || body.name.trim().length === 0) {
+    return c.json({ error: "Team name is required" }, 400);
+  }
+
+  const team = await updateTeamName(teamId, body.name.trim());
   return c.json({ team });
 });
 
@@ -85,6 +128,100 @@ teamsRouter.get("/teams/:teamId/members", async (c) => {
 
   const members = await getTeamMembers(teamId);
   return c.json({ members });
+});
+
+teamsRouter.post("/teams/:teamId/members/:memberUserId/remove", async (c) => {
+  const { teamId, memberUserId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const actor = await getTeamMember(teamId, userId);
+  try {
+    requireAdmin(actor);
+  } catch {
+    return c.json({ error: "Admin access required" }, 403);
+  }
+
+  const target = await getTeamMember(teamId, memberUserId);
+  if (!target) {
+    return c.json({ error: "Member not found" }, 404);
+  }
+
+  if (target.role === TeamRole.OWNER) {
+    return c.json({ error: "Cannot remove the team owner" }, 403);
+  }
+
+  const admins = await getAdminsForTeam(teamId);
+  const isLastAdmin =
+    target.role === TeamRole.ADMIN &&
+    admins.filter((a) => a.userId !== memberUserId).length === 0;
+  if (isLastAdmin && admins.every((a) => a.userId === memberUserId)) {
+    return c.json({ error: "Cannot remove the last admin" }, 403);
+  }
+
+  await removeTeamMember(teamId, memberUserId);
+  return c.json({ success: true });
+});
+
+teamsRouter.post("/teams/:teamId/members/:memberUserId/role", async (c) => {
+  const { teamId, memberUserId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const actor = await getTeamMember(teamId, userId);
+  try {
+    requireAdmin(actor);
+  } catch {
+    return c.json({ error: "Admin access required" }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const newRole = body.role;
+  if (!newRole || !["admin", "member"].includes(newRole)) {
+    return c.json({ error: "Role must be admin or member" }, 400);
+  }
+
+  const target = await getTeamMember(teamId, memberUserId);
+  if (!target) {
+    return c.json({ error: "Member not found" }, 404);
+  }
+
+  if (target.role === TeamRole.OWNER) {
+    return c.json({ error: "Cannot change the owner's role" }, 403);
+  }
+
+  if (newRole === "member") {
+    const admins = await getAdminsForTeam(teamId);
+    const remainingAdmins = admins.filter((a) => a.userId !== memberUserId);
+    if (remainingAdmins.length === 0) {
+      return c.json({ error: "Cannot demote the last admin" }, 403);
+    }
+  }
+
+  const updated = await updateMemberRole(teamId, memberUserId, newRole);
+  return c.json({ member: updated });
+});
+
+teamsRouter.post("/teams/:teamId/invite-code/regenerate", async (c) => {
+  const { teamId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const member = await getTeamMember(teamId, userId);
+  try {
+    requireAdmin(member);
+  } catch {
+    return c.json({ error: "Admin access required" }, 403);
+  }
+
+  const team = await regenerateInviteCode(teamId);
+  return c.json({ inviteCode: team.inviteCode });
 });
 
 teamsRouter.get("/teams/:teamId/board", async (c) => {
@@ -159,6 +296,29 @@ teamsRouter.post("/teams/join", zValidator("json", joinTeamSchema), async (c) =>
       teamId: team.id,
       userId,
     });
+
+    const requester = await getUserById(userId);
+    const admins = await getAdminsForTeam(team.id);
+    const payload: NotificationPayload = {
+      taskTitle: requester
+        ? `${requester.firstName}${requester.telegramUsername ? ` (@${requester.telegramUsername})` : ""}`
+        : "Someone",
+      teamId: team.id,
+      teamName: team.name,
+    };
+
+    for (const admin of admins) {
+      if (admin.userId === userId) continue;
+      await createNotification({
+        taskId: null,
+        teamId: team.id,
+        recipientUserId: admin.userId,
+        actorUserId: userId,
+        eventType: "join_requested",
+        payload,
+      });
+    }
+
     return c.json({ request }, 201);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to create join request";
@@ -219,6 +379,23 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/approve", async (c) =>
       role: TeamRole.MEMBER,
     });
 
+    const team = await getTeamById(teamId);
+    const actorUser = await getUserById(userId);
+    const payload: NotificationPayload = {
+      taskTitle: team?.name ?? "Unknown team",
+      teamId,
+      memberName: actorUser?.firstName ?? "An admin",
+    };
+
+    await createNotification({
+      taskId: null,
+      teamId,
+      recipientUserId: request.userId,
+      actorUserId: userId,
+      eventType: "join_request_approved",
+      payload,
+    });
+
     const requestUser = await getUserById(request.userId);
     if (!requestUser) {
       return c.json({ error: "Join request user not found" }, 404);
@@ -258,6 +435,22 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/reject", async (c) => 
       requestId,
       reviewerId: userId,
     });
+
+    const team = await getTeamById(teamId);
+    const payload: NotificationPayload = {
+      taskTitle: team?.name ?? "Unknown team",
+      teamId,
+    };
+
+    await createNotification({
+      taskId: null,
+      teamId,
+      recipientUserId: request.userId,
+      actorUserId: userId,
+      eventType: "join_request_rejected",
+      payload,
+    });
+
     const requestUser = await getUserById(request.userId);
     if (!requestUser) {
       return c.json({ error: "Join request user not found" }, 404);

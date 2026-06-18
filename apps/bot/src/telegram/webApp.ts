@@ -28,6 +28,16 @@ function actionToPath(action: MiniAppAction, ctx: {
       return "/app/onboarding/create-team";
     case "onboard_join_team":
       return "/app/onboarding/join-team";
+    case "view_team":
+      return "/app/team";
+    case "view_members":
+      return "/app/team/members";
+    case "manage_invite":
+      return "/app/team/invite";
+    case "review_join_requests":
+      return "/app/team/join-requests";
+    case "team_settings":
+      return "/app/team/settings";
     default:
       return "/app/tasks/mine";
   }

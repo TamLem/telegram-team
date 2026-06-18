@@ -75,3 +75,19 @@ export function buildJoinTeamButton(params: Omit<MiniAppButtonParams, "teamId">)
   });
   return buildButton("Join Team", url);
 }
+
+export function buildOpenTeamButton(params: MiniAppButtonParams): InlineKeyboardButton {
+  return buildButton("Open Team", buildUrl("view_team", params));
+}
+
+export function buildOpenMembersButton(params: MiniAppButtonParams): InlineKeyboardButton {
+  return buildButton("Open Members", buildUrl("view_members", params));
+}
+
+export function buildOpenInviteButton(params: MiniAppButtonParams): InlineKeyboardButton {
+  return buildButton("Open Invite", buildUrl("manage_invite", params));
+}
+
+export function buildReviewRequestsButton(params: MiniAppButtonParams): InlineKeyboardButton {
+  return buildButton("Review Request", buildUrl("review_join_requests", params));
+}

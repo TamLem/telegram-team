@@ -12,7 +12,12 @@ export type MiniAppAction =
   | "view_board"
   | "view_my_tasks"
   | "onboard_create_team"
-  | "onboard_join_team";
+  | "onboard_join_team"
+  | "view_team"
+  | "view_members"
+  | "manage_invite"
+  | "review_join_requests"
+  | "team_settings";
 
 export interface MiniAppContext {
   action: MiniAppAction;

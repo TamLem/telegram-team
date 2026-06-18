@@ -64,3 +64,29 @@ export async function getUserTeams(userId: string): Promise<Team[]> {
   const db = getDb();
   return db.select().from(teams).where(eq(teams.createdByUserId, userId));
 }
+
+export async function updateTeamName(
+  teamId: string,
+  name: string
+): Promise<Team> {
+  const db = getDb();
+  const [team] = await db
+    .update(teams)
+    .set({ name, updatedAt: new Date().toISOString() })
+    .where(eq(teams.id, teamId))
+    .returning();
+  return team;
+}
+
+export async function regenerateInviteCode(teamId: string): Promise<Team> {
+  const db = getDb();
+  const [team] = await db
+    .update(teams)
+    .set({
+      inviteCode: generateInviteCode(),
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(teams.id, teamId))
+    .returning();
+  return team;
+}

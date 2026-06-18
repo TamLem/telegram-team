@@ -32,6 +32,8 @@ interface NotificationPayload {
   taskId?: string;
   teamId?: string;
   dueAt?: string | null;
+  teamName?: string;
+  memberName?: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -94,16 +96,48 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `${payload.actorName ?? "Someone"}: ${payload.commentBody ?? ""}`
       );
 
+    case "join_requested":
+      return (
+        `<b>New join request</b>\n\n` +
+        `User: ${payload.taskTitle ?? "Someone"}\n` +
+        `Team: ${payload.teamName ?? "Unknown team"}`
+      );
+
+    case "join_request_approved":
+      return (
+        `<b>Join request approved</b>\n\n` +
+        `Your request to join <b>${payload.taskTitle ?? "a team"}</b> has been approved.\n` +
+        `Reviewed by: ${payload.memberName ?? "An admin"}`
+      );
+
+    case "join_request_rejected":
+      return (
+        `<b>Join request rejected</b>\n\n` +
+        `Your request to join <b>${payload.taskTitle ?? "a team"}</b> was not approved.`
+      );
+
     default:
       return `<b>Task notification</b>\n\n${title}`;
   }
 }
 
-function buildTaskDetailUrl(
+function buildActionUrl(
+  eventType: string,
   telegramUserId: number,
-  teamId: string | null | undefined,
-  taskId: string | null | undefined
+  payload: NotificationPayload
 ): string | null {
+  if (eventType.startsWith("join_request")) {
+    if (!payload.teamId) return null;
+    return miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "review_join_requests",
+      telegramUserId,
+      teamId: payload.teamId,
+      returnChatId: telegramUserId,
+    });
+  }
+
+  const teamId = payload.teamId;
+  const taskId = payload.taskId;
   if (!teamId || !taskId) return null;
   return miniAppContextUrl(MINIAPP_BASE_URL, {
     action: "view_task",
@@ -149,16 +183,23 @@ async function processNotification(
 
   const text = formatMessage(notification.eventType, payload);
 
-  const detailUrl = buildTaskDetailUrl(
+  const detailUrl = buildActionUrl(
+    notification.eventType,
     notification.recipientTelegramUserId,
-    payload.teamId ?? notification.teamId,
-    payload.taskId ?? notification.taskId
+    payload
   );
 
   const replyMarkup = detailUrl
     ? {
         inline_keyboard: [
-          [{ text: "Open Details", web_app: { url: detailUrl } }],
+          [
+            {
+              text: notification.eventType.startsWith("join_request")
+                ? "Review Request"
+                : "Open Details",
+              web_app: { url: detailUrl },
+            },
+          ],
         ],
       }
     : undefined;

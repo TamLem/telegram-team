@@ -329,3 +329,88 @@ export async function assignTask(
   );
   return res.task;
 }
+
+export async function getTeam(teamId: string, userId: string): Promise<{
+  team: TeamResponse;
+  memberCount: number;
+  pendingRequestCount: number;
+}> {
+  return apiFetch<{ team: TeamResponse; memberCount: number; pendingRequestCount: number }>(
+    `/api/teams/${teamId}`,
+    { headers: { "X-User-Id": userId } }
+  );
+}
+
+export async function updateTeam(teamId: string, name: string, userId: string): Promise<TeamResponse> {
+  const res = await apiFetch<{ team: TeamResponse }>(
+    `/api/teams/${teamId}`,
+    {
+      method: "PATCH",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ name }),
+    }
+  );
+  return res.team;
+}
+
+export async function regenerateInviteCode(teamId: string, userId: string): Promise<string> {
+  const res = await apiFetch<{ inviteCode: string }>(
+    `/api/teams/${teamId}/invite-code/regenerate`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+    }
+  );
+  return res.inviteCode;
+}
+
+export async function removeMember(teamId: string, memberUserId: string, userId: string): Promise<void> {
+  await apiFetch<{ success: boolean }>(
+    `/api/teams/${teamId}/members/${memberUserId}/remove`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+    }
+  );
+}
+
+export async function updateMemberRole(teamId: string, memberUserId: string, role: string, userId: string): Promise<void> {
+  await apiFetch<{ member: TeamMemberResponse }>(
+    `/api/teams/${teamId}/members/${memberUserId}/role`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ role }),
+    }
+  );
+}
+
+export async function getJoinRequests(teamId: string, userId: string): Promise<(JoinRequestResponse & { user: { id: string; firstName: string; telegramUsername: string | null } })[]> {
+  const res = await apiFetch<{ requests: (JoinRequestResponse & { user: { id: string; firstName: string; telegramUsername: string | null } })[] }>(
+    `/api/teams/${teamId}/join-requests`,
+    { headers: { "X-User-Id": userId } }
+  );
+  return res.requests;
+}
+
+export async function approveJoinRequest(teamId: string, requestId: string, userId: string): Promise<JoinRequestResponse> {
+  const res = await apiFetch<{ request: JoinRequestResponse }>(
+    `/api/teams/${teamId}/join-requests/${requestId}/approve`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+    }
+  );
+  return res.request;
+}
+
+export async function rejectJoinRequest(teamId: string, requestId: string, userId: string): Promise<JoinRequestResponse> {
+  const res = await apiFetch<{ request: JoinRequestResponse }>(
+    `/api/teams/${teamId}/join-requests/${requestId}/reject`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+    }
+  );
+  return res.request;
+}

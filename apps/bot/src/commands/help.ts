@@ -7,6 +7,9 @@ export async function helpCommand(ctx: BotContext): Promise<void> {
       `/newtask — Create a new task\n` +
       `/mytasks — View your tasks\n` +
       `/board — Open the task board\n` +
+      `/team — Open your team workspace\n` +
+      `/members — View team members\n` +
+      `/invite — Get team invite code\n` +
       `/help — Show this message\n`
   );
 }
