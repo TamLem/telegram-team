@@ -65,6 +65,7 @@ export async function createTask(input: {
     actorName,
     taskId: id,
     teamId: input.teamId,
+    dueAt: input.dueAt ?? null,
   };
 
   await createNotification({
@@ -353,6 +354,8 @@ export async function updateTask(
       actorName,
       taskId: id,
       teamId: existing.teamId,
+      taskPriority: existing.priority,
+      dueAt: existing.dueAt ?? null,
     };
 
     if (input.assignedToUserId && input.assignedToUserId !== actorUserId) {

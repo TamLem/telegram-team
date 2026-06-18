@@ -97,6 +97,7 @@ export interface NotificationPayload {
   commentBody?: string;
   taskId?: string;
   teamId?: string;
+  dueAt?: string | null;
 }
 
 export type TaskStatusType = (typeof import("./enums.js").TaskStatus)[keyof typeof import("./enums.js").TaskStatus];

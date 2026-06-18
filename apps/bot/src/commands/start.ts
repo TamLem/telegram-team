@@ -1,11 +1,14 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { getEnv } from "@telegram-team/config";
 import { syncUser, getActiveTeams } from "../apiClient.js";
-import { miniAppContextUrl } from "../telegram/webApp.js";
 import { escapeHtml } from "../telegram/html.js";
-
-const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
+import {
+  buildCreateTaskButton,
+  buildMyTasksButton,
+  buildBoardButton,
+  buildCreateTeamButton,
+  buildJoinTeamButton,
+} from "../telegram/miniAppButtons.js";
 
 export async function startCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
@@ -19,23 +22,12 @@ export async function startCommand(ctx: BotContext): Promise<void> {
 
   if (teams.length === 0) {
     const firstName = escapeHtml(from.first_name);
-
-    const createTeamUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-      action: "onboard_create_team",
-      telegramUserId: from.id,
-      returnChatId: chatId,
-    });
-
-    const joinTeamUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-      action: "onboard_join_team",
-      telegramUserId: from.id,
-      returnChatId: chatId,
-    });
+    const params = { telegramUserId: from.id, returnChatId: chatId };
 
     const keyboard: InlineKeyboardMarkup = {
       inline_keyboard: [
-        [{ text: "Create Team", web_app: { url: createTeamUrl } }],
-        [{ text: "Join Team", web_app: { url: joinTeamUrl } }],
+        [buildCreateTeamButton(params)],
+        [buildJoinTeamButton(params)],
       ],
     };
 
@@ -49,35 +41,19 @@ export async function startCommand(ctx: BotContext): Promise<void> {
 
   const team = teams[0];
   const teamList = teams.map((t) => `  • ${escapeHtml(t.name)}`).join("\n");
-
-  const myTasksUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-    action: "view_my_tasks",
+  const params = {
     telegramUserId: from.id,
     teamId: team.id,
     returnChatId: chatId,
-  });
-
-  const boardUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-    action: "view_board",
-    telegramUserId: from.id,
-    teamId: team.id,
-    returnChatId: chatId,
-  });
-
-  const newTaskUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-    action: "create_task",
-    telegramUserId: from.id,
-    teamId: team.id,
-    returnChatId: chatId,
-  });
+  };
 
   const keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [
       [
-        { text: "New Task", web_app: { url: newTaskUrl } },
-        { text: "My Tasks", web_app: { url: myTasksUrl } },
+        buildCreateTaskButton(params),
+        buildMyTasksButton(params),
       ],
-      [{ text: "Open Board", web_app: { url: boardUrl } }],
+      [buildBoardButton(params)],
     ],
   };
 

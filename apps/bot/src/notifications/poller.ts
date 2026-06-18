@@ -31,6 +31,7 @@ interface NotificationPayload {
   commentBody?: string;
   taskId?: string;
   teamId?: string;
+  dueAt?: string | null;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -48,6 +49,17 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: "Urgent",
 };
 
+function formatDueDate(dateString: string | null | undefined): string {
+  if (!dateString) return "Not set";
+  const date = new Date(dateString);
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (date.toDateString() === now.toDateString()) return "Today";
+  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
 function formatMessage(eventType: string, payload: NotificationPayload): string {
   const title = payload.taskTitle ?? "Unknown task";
 
@@ -64,7 +76,9 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
     case "task_assigned":
       return (
         `<b>Task assigned to you</b>\n\n` +
-        `Task: ${title}`
+        `Task: ${title}\n` +
+        `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? payload.taskPriority ?? "Normal"}\n` +
+        `Due: ${formatDueDate(payload.dueAt)}`
       );
 
     case "task_status_changed":

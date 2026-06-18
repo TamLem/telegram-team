@@ -1,10 +1,7 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { getEnv } from "@telegram-team/config";
 import { syncUser, getActiveTeams } from "../apiClient.js";
-import { miniAppContextUrl } from "../telegram/webApp.js";
-
-const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
+import { buildCreateTaskButton } from "../telegram/miniAppButtons.js";
 
 export async function newTaskCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
@@ -18,35 +15,33 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
 
   if (teams.length === 0) {
     await ctx.reply(
-      "You need to join or create a team first. Use /start to get started."
+      "You need to create or join a team before using tasks.\n\nUse /start to get started."
     );
     return;
   }
 
   const team = teams[0];
-
-  const url = miniAppContextUrl(MINIAPP_BASE_URL, {
-    action: "create_task",
+  const buttonParams = {
     telegramUserId: from.id,
     teamId: team.id,
     returnChatId: chatId,
-  });
+  };
 
   const keyboard: InlineKeyboardMarkup = {
-    inline_keyboard: [[{ text: "Open Task Form", web_app: { url } }]],
+    inline_keyboard: [[buildCreateTaskButton(buttonParams)]],
   };
 
   const args = ctx.getState<string>("args")?.trim();
   if (args && args.length > 0) {
     await ctx.reply(
-      "Task creation now uses the Mini App form.",
+      "Task creation uses the Mini App form.",
       { reply_markup: keyboard }
     );
     return;
   }
 
   await ctx.reply(
-    `Ready to create a task in <b>${team.name}</b>.\n\nTap below to open the task form:`,
+    "Create a new task using the Mini App form.",
     { reply_markup: keyboard }
   );
 }

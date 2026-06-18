@@ -60,3 +60,80 @@ export async function getActiveTeams(
     return [];
   }
 }
+
+export interface TaskItem {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  createdById: string;
+  assignedToUserId: string | null;
+  dueAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MyTaskSummary {
+  todo: number;
+  doing: number;
+  blocked: number;
+  done: number;
+  cancelled: number;
+  total: number;
+}
+
+export async function getMyTaskSummary(
+  teamId: string,
+  userId: string
+): Promise<MyTaskSummary> {
+  const summary: MyTaskSummary = { todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0, total: 0 };
+  try {
+    const { tasks } = await apiFetch<{ tasks: TaskItem[] }>(
+      `/api/tasks?assigned_to=me&team_id=${teamId}&limit=100`,
+      { headers: { "X-User-Id": userId } }
+    );
+    for (const t of tasks) {
+      if (t.status === "todo") summary.todo++;
+      else if (t.status === "doing") summary.doing++;
+      else if (t.status === "blocked") summary.blocked++;
+      else if (t.status === "done") summary.done++;
+      else if (t.status === "cancelled") summary.cancelled++;
+    }
+    summary.total = tasks.length;
+  } catch {}
+  return summary;
+}
+
+export interface BoardSummary {
+  todo: number;
+  doing: number;
+  blocked: number;
+  done: number;
+  cancelled: number;
+}
+
+export async function getBoardSummary(
+  teamId: string,
+  userId: string
+): Promise<BoardSummary> {
+  try {
+    const { columns } = await apiFetch<{
+      columns: Array<{ status: string; count: number }>;
+    }>(`/api/teams/${teamId}/board`, {
+      headers: { "X-User-Id": userId },
+    });
+    const summary: BoardSummary = { todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0 };
+    for (const col of columns) {
+      if (col.status === "todo") summary.todo = col.count;
+      else if (col.status === "doing") summary.doing = col.count;
+      else if (col.status === "blocked") summary.blocked = col.count;
+      else if (col.status === "done") summary.done = col.count;
+      else if (col.status === "cancelled") summary.cancelled = col.count;
+    }
+    return summary;
+  } catch {
+    return { todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0 };
+  }
+}
