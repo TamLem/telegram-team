@@ -36,6 +36,15 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
     inline_keyboard: [[{ text: "Open Task Form", web_app: { url } }]],
   };
 
+  const args = ctx.getState<string>("args")?.trim();
+  if (args && args.length > 0) {
+    await ctx.reply(
+      "Task creation now uses the Mini App form.",
+      { reply_markup: keyboard }
+    );
+    return;
+  }
+
   await ctx.reply(
     `Ready to create a task in <b>${team.name}</b>.\n\nTap below to open the task form:`,
     { reply_markup: keyboard }

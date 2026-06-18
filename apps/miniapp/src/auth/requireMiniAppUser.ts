@@ -243,15 +243,23 @@ function actionToPath(ctx: MiniAppContext): string {
     case "create_task":
       return "/app/tasks/new";
     case "view_task":
-    case "edit_task":
-    case "assign_task":
-    case "change_status":
-    case "add_comment":
       return `/app/tasks/${ctx.taskId}`;
+    case "edit_task":
+      return `/app/tasks/${ctx.taskId}/edit`;
+    case "assign_task":
+      return `/app/tasks/${ctx.taskId}/assign`;
+    case "change_status":
+      return `/app/tasks/${ctx.taskId}/status`;
+    case "add_comment":
+      return `/app/tasks/${ctx.taskId}/comment`;
     case "view_board":
       return `/app/board/${ctx.teamId}`;
     case "view_my_tasks":
       return "/app/tasks/mine";
+    case "onboard_create_team":
+      return "/app/onboarding/create-team";
+    case "onboard_join_team":
+      return "/app/onboarding/join-team";
     default:
       return "/app/tasks/mine";
   }

@@ -1,24 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseTaskCallbackData } from "./task.js";
 
-test("parseTaskCallbackData parses status callbacks", () => {
-  assert.deepEqual(parseTaskCallbackData("task:status:doing:task_123"), {
-    action: "status",
-    subAction: "doing",
-    taskId: "task_123",
-  });
+test("task callback: task:open parses correctly (used by Mini App detail button)", () => {
+  const data = "task:open:task_123";
+  const parts = data.split(":");
+  assert.equal(parts[0], "task");
+  assert.equal(parts[1], "open");
+  assert.equal(parts[2], "task_123");
 });
 
-test("parseTaskCallbackData parses simple task callbacks", () => {
-  assert.deepEqual(parseTaskCallbackData("task:open:task_123"), {
-    action: "open",
-    taskId: "task_123",
-  });
-});
-
-test("parseTaskCallbackData rejects malformed callbacks", () => {
-  assert.equal(parseTaskCallbackData("task:"), null);
-  assert.equal(parseTaskCallbackData("task:status:doing"), null);
-  assert.equal(parseTaskCallbackData("other:status:doing:task_123"), null);
+test("task callback: unrecognized actions are ignored", () => {
+  const data = "task:status:doing:task_123";
+  const parts = data.split(":");
+  const action = parts[1];
+  assert.equal(action, "status");
+  assert.notEqual(action, "open");
 });

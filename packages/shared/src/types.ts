@@ -74,6 +74,31 @@ export interface TaskEvent {
   createdAt: string;
 }
 
+export interface Notification {
+  id: string;
+  taskId: string | null;
+  teamId: string | null;
+  recipientUserId: string;
+  actorUserId: string;
+  eventType: string;
+  payload: string | null;
+  createdAt: string;
+  deliveredAt: string | null;
+}
+
+export interface NotificationPayload {
+  taskTitle?: string;
+  taskStatus?: string;
+  taskPriority?: string;
+  assigneeName?: string | null;
+  oldStatus?: string;
+  newStatus?: string;
+  actorName?: string;
+  commentBody?: string;
+  taskId?: string;
+  teamId?: string;
+}
+
 export type TaskStatusType = (typeof import("./enums.js").TaskStatus)[keyof typeof import("./enums.js").TaskStatus];
 export type PriorityType = (typeof import("./enums.js").Priority)[keyof typeof import("./enums.js").Priority];
 export type TeamRoleType = (typeof import("./enums.js").TeamRole)[keyof typeof import("./enums.js").TeamRole];

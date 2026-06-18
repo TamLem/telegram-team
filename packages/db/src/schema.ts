@@ -124,3 +124,21 @@ export const taskEvents = sqliteTable("task_events", {
     .notNull()
     .default(sql`(datetime('now'))`),
 });
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  taskId: text("task_id").references(() => tasks.id),
+  teamId: text("team_id").references(() => teams.id),
+  recipientUserId: text("recipient_user_id")
+    .notNull()
+    .references(() => users.id),
+  actorUserId: text("actor_user_id")
+    .notNull()
+    .references(() => users.id),
+  eventType: text("event_type").notNull(),
+  payload: text("payload"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  deliveredAt: text("delivered_at"),
+});

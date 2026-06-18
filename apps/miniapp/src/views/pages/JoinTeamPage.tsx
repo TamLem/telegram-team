@@ -1,10 +1,9 @@
 import type { FC } from "hono/jsx";
 
-export const JoinTeamPage: FC<{ error?: string; success?: string }> = ({ error, success }) => {
+export const JoinTeamPage: FC<{ ctx?: string; error?: string }> = ({ ctx, error }) => {
+  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
-      <a href="/app/onboarding" class="back-link">Back</a>
-
       <div class="header">
         <h1>Join Team</h1>
       </div>
@@ -15,13 +14,9 @@ export const JoinTeamPage: FC<{ error?: string; success?: string }> = ({ error, 
         </div>
       )}
 
-      {success ? (
-        <div class="card" style="background: #f0fdf4; border-color: #bbf7d0; color: #16a34a;">
-          <div style="font-weight: 600; margin-bottom: 4px;">Join request sent</div>
-          <div style="font-size: 14px;">An admin must approve your request before you can access the team workspace.</div>
-        </div>
-      ) : (
-        <form method="post" action="/app/onboarding/join-team">
+      <div class="card">
+        <form method="post" action={`/app/onboarding/join-team${ctxQuery}`}>
+          <input type="hidden" name="ctx" value={ctx ?? ""} />
           <div class="form-group">
             <label class="form-label" for="inviteCode">Invite Code</label>
             <input
@@ -40,7 +35,7 @@ export const JoinTeamPage: FC<{ error?: string; success?: string }> = ({ error, 
             Join Team
           </button>
         </form>
-      )}
+      </div>
     </div>
   );
 };

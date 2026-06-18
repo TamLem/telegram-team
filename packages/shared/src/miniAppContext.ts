@@ -10,12 +10,14 @@ export type MiniAppAction =
   | "change_status"
   | "add_comment"
   | "view_board"
-  | "view_my_tasks";
+  | "view_my_tasks"
+  | "onboard_create_team"
+  | "onboard_join_team";
 
 export interface MiniAppContext {
   action: MiniAppAction;
   telegramUserId: number;
-  teamId: string;
+  teamId?: string;
   returnChatId: number;
   taskId?: string;
   expiresAt: number;
@@ -25,7 +27,7 @@ export interface MiniAppContext {
 export interface CreateMiniAppContextInput {
   action: MiniAppAction;
   telegramUserId: number;
-  teamId: string;
+  teamId?: string;
   returnChatId: number;
   taskId?: string;
   ttlSeconds?: number;
@@ -99,10 +101,14 @@ export function verifySignedMiniAppContext(token: string): MiniAppContext | null
 
   try {
     const payload = JSON.parse(decodeBase64Url(encoded)) as MiniAppContext;
+    const isOnboarding =
+      payload.action === "onboard_create_team" ||
+      payload.action === "onboard_join_team";
+
     if (
       !payload.action ||
       typeof payload.telegramUserId !== "number" ||
-      !payload.teamId ||
+      (!isOnboarding && !payload.teamId) ||
       typeof payload.returnChatId !== "number" ||
       !payload.expiresAt ||
       !payload.nonce

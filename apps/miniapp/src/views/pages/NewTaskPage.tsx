@@ -1,11 +1,14 @@
 import type { FC } from "hono/jsx";
 import { Button } from "../components/Button.js";
+import type { TeamMemberResponse } from "../../services/apiClient.js";
 
-export const NewTaskPage: FC<{ teamId: string; ctx?: string; error?: string }> = ({
-  teamId,
-  ctx,
-  error,
-}) => {
+export const NewTaskPage: FC<{
+  teamId: string;
+  ctx?: string;
+  error?: string;
+  members?: TeamMemberResponse[];
+  currentUserId?: string;
+}> = ({ teamId, ctx, error, members = [], currentUserId }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
@@ -49,6 +52,25 @@ export const NewTaskPage: FC<{ teamId: string; ctx?: string; error?: string }> =
               class="form-input form-textarea"
               placeholder="Enter task description..."
             />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="assignee">
+              Assignee
+            </label>
+            <select id="assignee" name="assignedToUserId" class="form-select">
+              <option value="">Unassigned</option>
+              {currentUserId && (
+                <option value={currentUserId}>Me</option>
+              )}
+              {members
+                .filter((m) => m.userId !== currentUserId)
+                .map((m) => (
+                  <option value={m.userId}>
+                    {m.user.firstName}{m.user.telegramUsername ? ` (@${m.user.telegramUsername})` : ""}
+                  </option>
+                ))}
+            </select>
           </div>
 
           <div class="form-group">

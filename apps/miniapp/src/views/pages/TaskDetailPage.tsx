@@ -1,6 +1,5 @@
 import type { FC } from "hono/jsx";
 import type { TaskResponse } from "../../services/apiClient.js";
-import { Button } from "../components/Button.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -38,23 +37,6 @@ function formatDueDate(dateString: string | null): string {
   });
 }
 
-function statusActions(task: TaskResponse) {
-  const allActions: { label: string; newStatus: string; variant: "primary" | "secondary" }[] = [];
-  if (task.status === "todo") {
-    allActions.push({ label: "Start Doing", newStatus: "doing", variant: "primary" });
-  }
-  if (task.status === "todo" || task.status === "doing") {
-    allActions.push({ label: "Block", newStatus: "blocked", variant: "secondary" });
-  }
-  if (task.status !== "done" && task.status !== "cancelled") {
-    allActions.push({ label: "Complete", newStatus: "done", variant: "primary" });
-  }
-  if (task.status !== "cancelled") {
-    allActions.push({ label: "Cancel", newStatus: "cancelled", variant: "secondary" });
-  }
-  return allActions.filter((a) => a.newStatus !== task.status);
-}
-
 export const TaskDetailPage: FC<{
   task: TaskResponse | null;
   comments?: Array<{ id: string; body: string; userId: string; createdAt: string; user?: { firstName: string; telegramUsername: string | null } | null }>;
@@ -77,8 +59,6 @@ export const TaskDetailPage: FC<{
       </div>
     );
   }
-
-  const actions = statusActions(task);
 
   return (
     <div>
@@ -130,28 +110,25 @@ export const TaskDetailPage: FC<{
         </div>
       </div>
 
-      {actions.length > 0 && (
-        <div class="card">
-          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
-            Change Status
-          </h3>
-          <div class="task-actions">
-            {actions.map((action) => (
-              <form
-                method="post"
-                action={`/app/tasks/${task.id}/status${ctxQuery}`}
-                style="display: inline;"
-              >
-                <input type="hidden" name="status" value={action.newStatus} />
-                <input type="hidden" name="ctx" value={ctx ?? ""} />
-                <Button type="submit" variant={action.variant}>
-                  {action.label}
-                </Button>
-              </form>
-            ))}
-          </div>
+      <div class="card">
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+          Actions
+        </h3>
+        <div class="task-actions" style="flex-direction: column; gap: 8px;">
+          <a href={`/app/tasks/${task.id}/edit${ctxQuery}`} class="btn btn-block btn-secondary">
+            ✏️ Edit Task
+          </a>
+          <a href={`/app/tasks/${task.id}/assign${ctxQuery}`} class="btn btn-block btn-secondary">
+            👤 Assign
+          </a>
+          <a href={`/app/tasks/${task.id}/status${ctxQuery}`} class="btn btn-block btn-secondary">
+            🔄 Change Status
+          </a>
+          <a href={`/app/tasks/${task.id}/comment${ctxQuery}`} class="btn btn-block btn-secondary">
+            💬 Add Comment
+          </a>
         </div>
-      )}
+      </div>
 
       {comments && comments.length > 0 && (
         <div class="card">

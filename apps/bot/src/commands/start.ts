@@ -7,13 +7,6 @@ import { escapeHtml } from "../telegram/html.js";
 
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 
-const ONBOARDING_KEYBOARD: InlineKeyboardMarkup = {
-  inline_keyboard: [
-    [{ text: "Create Team", callback_data: "onboard:create" }],
-    [{ text: "Join Team", callback_data: "onboard:join" }],
-  ],
-};
-
 export async function startCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
   if (!from) return;
@@ -27,10 +20,29 @@ export async function startCommand(ctx: BotContext): Promise<void> {
   if (teams.length === 0) {
     const firstName = escapeHtml(from.first_name);
 
+    const createTeamUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "onboard_create_team",
+      telegramUserId: from.id,
+      returnChatId: chatId,
+    });
+
+    const joinTeamUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "onboard_join_team",
+      telegramUserId: from.id,
+      returnChatId: chatId,
+    });
+
+    const keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [
+        [{ text: "Create Team", web_app: { url: createTeamUrl } }],
+        [{ text: "Join Team", web_app: { url: joinTeamUrl } }],
+      ],
+    };
+
     await ctx.reply(
       `Welcome to <b>TaskPilot</b>, ${firstName}!\n\n` +
         `To start, create a team or join an existing team.`,
-      { reply_markup: ONBOARDING_KEYBOARD }
+      { reply_markup: keyboard }
     );
     return;
   }

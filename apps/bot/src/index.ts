@@ -9,12 +9,15 @@ import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { PollingSource } from "./updateSources/polling.js";
 import { createWebhookApp } from "./updateSources/webhook.js";
 import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
+import { NotificationPoller } from "./notifications/poller.js";
 import { logError } from "./logger.js";
 
 const botToken = getEnv("BOT_TOKEN");
 const updateMode = getEnv("BOT_UPDATE_MODE", "polling");
 
 const bot = createBot(botToken);
+
+let pollingRef: PollingSource | null = null;
 
 bot.use(logMiddleware());
 bot.use(requireUser());
@@ -54,8 +57,23 @@ async function main() {
       logError("[bot] failed to initialize bot metadata", err);
     });
 
+  const poller = new NotificationPoller(bot);
+  poller.start();
+
+  process.on("SIGINT", () => {
+    poller.stop();
+    pollingRef?.stop();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    poller.stop();
+    pollingRef?.stop();
+    process.exit(0);
+  });
+
   if (updateMode === "polling") {
     const polling = new PollingSource(bot.api, bot);
+    pollingRef = polling;
 
     const dropPending = getEnvOptional("DROP_PENDING_UPDATES") === "true";
     const allowedUpdates = parseListEnv(
@@ -70,9 +88,6 @@ async function main() {
       "BOT_GET_UPDATES_REQUEST_TIMEOUT_MS",
       (pollTimeout + 5) * 1000
     );
-
-    process.on("SIGINT", () => polling.stop());
-    process.on("SIGTERM", () => polling.stop());
 
     await polling.start({
       dropPendingUpdates: dropPending,

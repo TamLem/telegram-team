@@ -1,8 +1,19 @@
 import { getDb } from "@telegram-team/db";
-import { tasks, taskComments, taskEvents } from "@telegram-team/db";
+import { tasks, taskComments, taskEvents, users as usersTable } from "@telegram-team/db";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
-import type { Task, TaskComment, TaskEvent } from "@telegram-team/shared";
+import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
+import { createNotification } from "./notification.service.js";
+
+async function getUserName(userId: string): Promise<string> {
+  const db = getDb();
+  const [user] = await db
+    .select({ firstName: usersTable.firstName })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+  return user?.firstName ?? "Someone";
+}
 
 export async function createTask(input: {
   title: string;
@@ -40,6 +51,41 @@ export async function createTask(input: {
     eventType: TaskEventType.TASK_CREATED,
     newValue: JSON.stringify({ title: input.title }),
   });
+
+  const actorName = await getUserName(input.createdById);
+  const assigneeName = input.assignedToUserId
+    ? await getUserName(input.assignedToUserId)
+    : null;
+
+  const payload: NotificationPayload = {
+    taskTitle: input.title,
+    taskStatus: "todo",
+    taskPriority: input.priority ?? "normal",
+    assigneeName,
+    actorName,
+    taskId: id,
+    teamId: input.teamId,
+  };
+
+  await createNotification({
+    taskId: id,
+    teamId: input.teamId,
+    recipientUserId: input.createdById,
+    actorUserId: input.createdById,
+    eventType: "task_created",
+    payload,
+  });
+
+  if (input.assignedToUserId && input.assignedToUserId !== input.createdById) {
+    await createNotification({
+      taskId: id,
+      teamId: input.teamId,
+      recipientUserId: input.assignedToUserId,
+      actorUserId: input.createdById,
+      eventType: "task_assigned",
+      payload,
+    });
+  }
 
   return task;
 }
@@ -244,11 +290,82 @@ export async function updateTask(
     });
   }
 
+  if (input.dueAt !== undefined && input.dueAt !== existing.dueAt) {
+    await recordTaskEvent({
+      taskId: id,
+      teamId: existing.teamId,
+      actorUserId,
+      eventType: TaskEventType.DUE_DATE_CHANGED,
+      oldValue: existing.dueAt ?? "none",
+      newValue: input.dueAt ?? "none",
+    });
+  }
+
   const [task] = await db
     .update(tasks)
     .set(updates)
     .where(eq(tasks.id, id))
     .returning();
+
+  if (input.status !== undefined && input.status !== existing.status) {
+    const actorName = await getUserName(actorUserId);
+    const payload: NotificationPayload = {
+      taskTitle: existing.title,
+      oldStatus: existing.status,
+      newStatus: input.status,
+      actorName,
+      taskId: id,
+      teamId: existing.teamId,
+    };
+
+    await createNotification({
+      taskId: id,
+      teamId: existing.teamId,
+      recipientUserId: actorUserId,
+      actorUserId,
+      eventType: "task_status_changed",
+      payload,
+    });
+
+    if (existing.assignedToUserId && existing.assignedToUserId !== actorUserId) {
+      await createNotification({
+        taskId: id,
+        teamId: existing.teamId,
+        recipientUserId: existing.assignedToUserId,
+        actorUserId,
+        eventType: "task_status_changed",
+        payload,
+      });
+    }
+  }
+
+  if (
+    input.assignedToUserId !== undefined &&
+    input.assignedToUserId !== existing.assignedToUserId
+  ) {
+    const actorName = await getUserName(actorUserId);
+    const assigneeName = input.assignedToUserId
+      ? await getUserName(input.assignedToUserId)
+      : null;
+    const payload: NotificationPayload = {
+      taskTitle: existing.title,
+      assigneeName,
+      actorName,
+      taskId: id,
+      teamId: existing.teamId,
+    };
+
+    if (input.assignedToUserId && input.assignedToUserId !== actorUserId) {
+      await createNotification({
+        taskId: id,
+        teamId: existing.teamId,
+        recipientUserId: input.assignedToUserId,
+        actorUserId,
+        eventType: "task_assigned",
+        payload,
+      });
+    }
+  }
 
   return task;
 }
@@ -294,6 +411,40 @@ export async function addTaskComment(input: {
     actorUserId: input.userId,
     eventType: TaskEventType.COMMENT_ADDED,
   });
+
+  const actorName = await getUserName(input.userId);
+
+  const payload: NotificationPayload = {
+    taskTitle: undefined,
+    actorName,
+    commentBody: input.body,
+    taskId: input.taskId,
+    teamId: input.teamId,
+  };
+
+  const task = await getTaskById(input.taskId);
+  if (task) {
+    payload.taskTitle = task.title;
+
+    const recipients = new Set<string>();
+    if (task.createdById && task.createdById !== input.userId) {
+      recipients.add(task.createdById);
+    }
+    if (task.assignedToUserId && task.assignedToUserId !== input.userId) {
+      recipients.add(task.assignedToUserId);
+    }
+
+    for (const recipientId of recipients) {
+      await createNotification({
+        taskId: input.taskId,
+        teamId: input.teamId,
+        recipientUserId: recipientId,
+        actorUserId: input.userId,
+        eventType: "task_commented",
+        payload,
+      });
+    }
+  }
 
   return comment;
 }

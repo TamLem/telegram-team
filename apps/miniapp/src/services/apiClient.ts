@@ -267,3 +267,65 @@ export async function addTaskComment(
   );
   return res.comment;
 }
+
+export interface TeamMemberResponse {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: string;
+  status: string;
+  user: {
+    id: string;
+    firstName: string;
+    telegramUsername: string | null;
+  };
+}
+
+export async function getTeamMembers(
+  teamId: string,
+  userId: string
+): Promise<TeamMemberResponse[]> {
+  const res = await apiFetch<{ members: TeamMemberResponse[] }>(
+    `/api/teams/${teamId}/members`,
+    { headers: { "X-User-Id": userId } }
+  );
+  return res.members;
+}
+
+export async function updateTask(
+  taskId: string,
+  input: {
+    title?: string;
+    description?: string | null;
+    priority?: string;
+    dueAt?: string | null;
+    assignedToUserId?: string | null;
+  },
+  userId: string
+): Promise<TaskResponse> {
+  const res = await apiFetch<{ task: TaskResponse }>(
+    `/api/tasks/${taskId}`,
+    {
+      method: "PATCH",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify(input),
+    }
+  );
+  return res.task;
+}
+
+export async function assignTask(
+  taskId: string,
+  assignedToUserId: string,
+  userId: string
+): Promise<TaskResponse> {
+  const res = await apiFetch<{ task: TaskResponse }>(
+    `/api/tasks/${taskId}/assign`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ assignedToUserId }),
+    }
+  );
+  return res.task;
+}

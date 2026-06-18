@@ -100,6 +100,22 @@ CREATE TABLE IF NOT EXISTS task_events (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_team_join_requests_active_pending
   ON team_join_requests(team_id, user_id)
   WHERE status = 'pending';
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id TEXT PRIMARY KEY,
+  task_id TEXT REFERENCES tasks(id),
+  team_id TEXT REFERENCES teams(id),
+  recipient_user_id TEXT NOT NULL REFERENCES users(id),
+  actor_user_id TEXT NOT NULL REFERENCES users(id),
+  event_type TEXT NOT NULL,
+  payload TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  delivered_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_undelivered
+  ON notifications(delivered_at)
+  WHERE delivered_at IS NULL;
 `;
 
 function migrateDb(sqlite: Database.Database): void {
