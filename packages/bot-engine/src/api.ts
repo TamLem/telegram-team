@@ -31,22 +31,29 @@ export class TelegramApiError extends Error {
 export class TelegramApi {
   private token: string;
   private baseUrl: string;
+  private requestTimeoutMs: number;
 
-  constructor(token: string) {
+  constructor(token: string, config: { requestTimeoutMs?: number } = {}) {
     this.token = token;
     this.baseUrl = `https://api.telegram.org/bot${token}`;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? 15_000;
   }
 
   private async request<T>(
     method: string,
-    body: Record<string, unknown>
+    body: Record<string, unknown>,
+    options: { timeoutMs?: number } = {}
   ): Promise<T> {
+    const timeoutMs = options.timeoutMs ?? this.requestTimeoutMs;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response: Response;
     try {
       response = await fetch(`${this.baseUrl}/${method}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
     } catch (error) {
       throw new TelegramApiError(
@@ -54,6 +61,8 @@ export class TelegramApi {
         { method },
         error
       );
+    } finally {
+      clearTimeout(timeout);
     }
 
     let data: TelegramResponse<T>;
@@ -165,7 +174,10 @@ export class TelegramApi {
     if (params?.allowed_updates !== undefined) {
       body.allowed_updates = params.allowed_updates;
     }
-    return this.request<TelegramUpdate[]>("getUpdates", body);
+    const timeoutMs =
+      params?.requestTimeoutMs ??
+      (params?.timeout !== undefined ? (params.timeout + 5) * 1000 : undefined);
+    return this.request<TelegramUpdate[]>("getUpdates", body, { timeoutMs });
   }
 
   async setWebhook(url: string, secretToken?: string): Promise<true> {

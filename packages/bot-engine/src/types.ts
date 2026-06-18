@@ -127,6 +127,7 @@ export interface GetUpdatesParams {
   limit?: number;
   timeout?: number;
   allowed_updates?: string[];
+  requestTimeoutMs?: number;
 }
 
 export interface DeleteWebhookParams {

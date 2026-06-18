@@ -5,14 +5,14 @@ import {
   requireUser,
   extractCommandArgs,
 } from "@telegram-team/bot-engine";
-import { getEnv } from "@telegram-team/config";
+import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { PollingSource } from "./updateSources/polling.js";
 import { createWebhookApp } from "./updateSources/webhook.js";
 import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
 import { logError } from "./logger.js";
 
 const botToken = getEnv("BOT_TOKEN");
-const updateMode = process.env.BOT_UPDATE_MODE ?? "webhook";
+const updateMode = getEnv("BOT_UPDATE_MODE", "polling");
 
 const bot = createBot(botToken);
 
@@ -57,22 +57,39 @@ async function main() {
   if (updateMode === "polling") {
     const polling = new PollingSource(bot.api, bot);
 
-    const dropPending =
-      process.env.DROP_PENDING_UPDATES === "true";
+    const dropPending = getEnvOptional("DROP_PENDING_UPDATES") === "true";
+    const allowedUpdates = parseListEnv(
+      getEnvOptional("BOT_ALLOWED_UPDATES"),
+      ["message", "callback_query"]
+    );
+    const pollTimeout = parsePositiveIntegerEnv("BOT_POLL_TIMEOUT_SECONDS", 30);
+    const maxUpdateFailures = parsePositiveIntegerEnv("BOT_MAX_UPDATE_FAILURES", 3);
+    const retryDelayMs = parsePositiveIntegerEnv("BOT_RETRY_DELAY_MS", 5_000);
+    const handlerTimeoutMs = parsePositiveIntegerEnv("BOT_HANDLER_TIMEOUT_MS", 25_000);
+    const requestTimeoutMs = parsePositiveIntegerEnv(
+      "BOT_GET_UPDATES_REQUEST_TIMEOUT_MS",
+      (pollTimeout + 5) * 1000
+    );
 
     process.on("SIGINT", () => polling.stop());
     process.on("SIGTERM", () => polling.stop());
 
-    await polling.start({ dropPendingUpdates: dropPending });
+    await polling.start({
+      dropPendingUpdates: dropPending,
+      allowedUpdates,
+      pollTimeout,
+      maxUpdateFailures,
+      retryDelayMs,
+      handlerTimeoutMs,
+      requestTimeoutMs,
+    });
     return;
   }
 
   if (updateMode === "webhook") {
-    const webhookSecret = process.env.BOT_WEBHOOK_SECRET;
-    const port = parseInt(
-      process.env.BOT_PORT ?? getEnv("PORT", "3000")
-    );
-    const publicUrl = process.env.BOT_WEBHOOK_URL;
+    const webhookSecret = getEnvOptional("BOT_WEBHOOK_SECRET");
+    const port = parseInt(getEnv("BOT_PORT", getEnv("PORT", "3000")));
+    const publicUrl = getEnvOptional("BOT_WEBHOOK_URL");
 
     const app = createWebhookApp(bot, {
       secretToken: webhookSecret,
@@ -107,3 +124,23 @@ main().catch((err) => {
   logError("[bot] fatal", err);
   process.exit(1);
 });
+
+function parseListEnv(value: string | undefined, fallback: string[]): string[] {
+  if (!value) return fallback;
+  const parsed = value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  return parsed.length > 0 ? parsed : fallback;
+}
+
+function parsePositiveIntegerEnv(key: string, fallback: number): number {
+  const value = getEnvOptional(key);
+  if (!value) return fallback;
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid ${key}: expected a positive integer`);
+  }
+  return parsed;
+}
