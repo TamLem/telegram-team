@@ -189,19 +189,38 @@ async function processNotification(
     payload
   );
 
-  const replyMarkup = detailUrl
-    ? {
-        inline_keyboard: [
-          [
-            {
-              text: notification.eventType.startsWith("join_request")
-                ? "Review Request"
-                : "Open Details",
-              web_app: { url: detailUrl },
-            },
-          ],
-        ],
-      }
+  const boardUrl =
+    !notification.eventType.startsWith("join_request") && payload.teamId
+      ? miniAppContextUrl(MINIAPP_BASE_URL, {
+          action: "view_board",
+          telegramUserId: notification.recipientTelegramUserId,
+          teamId: payload.teamId,
+          returnChatId: notification.recipientTelegramUserId,
+        })
+      : null;
+
+  const buttons: Array<Array<{ text: string; web_app: { url: string } }>> = [];
+  if (detailUrl) {
+    buttons.push([
+      {
+        text: notification.eventType.startsWith("join_request")
+          ? "Review Request"
+          : "Open Details",
+        web_app: { url: detailUrl },
+      },
+    ]);
+  }
+  if (boardUrl) {
+    buttons.push([
+      {
+        text: "Open Board",
+        web_app: { url: boardUrl },
+      },
+    ]);
+  }
+
+  const replyMarkup = buttons.length > 0
+    ? { inline_keyboard: buttons }
     : undefined;
 
   try {

@@ -91,3 +91,7 @@ export function buildOpenInviteButton(params: MiniAppButtonParams): InlineKeyboa
 export function buildReviewRequestsButton(params: MiniAppButtonParams): InlineKeyboardButton {
   return buildButton("Review Request", buildUrl("review_join_requests", params));
 }
+
+export function buildBlockedTasksButton(params: MiniAppButtonParams): InlineKeyboardButton {
+  return buildButton("Open Blocked Tasks", buildUrl("view_blocked_tasks", params));
+}

@@ -9,7 +9,7 @@ import {
   updateTeamName,
   regenerateInviteCode,
 } from "../services/teams.service.js";
-import { listTeamBoard } from "../services/task.service.js";
+import { listTeamBoard, getBoardSummary } from "../services/task.service.js";
 import {
   addTeamMember,
   getTeamMembers,
@@ -238,6 +238,22 @@ teamsRouter.get("/teams/:teamId/board", async (c) => {
 
   const columns = await listTeamBoard(teamId);
   return c.json({ columns });
+});
+
+teamsRouter.get("/teams/:teamId/board-summary", async (c) => {
+  const { teamId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const member = await getTeamMember(teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  const summary = await getBoardSummary(teamId, userId);
+  return c.json(summary);
 });
 
 teamsRouter.get("/teams/:teamId/admin-contacts", async (c) => {

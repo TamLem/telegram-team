@@ -15,31 +15,43 @@ export async function boardCommand(ctx: BotContext): Promise<void> {
 
   if (teams.length === 0) {
     await ctx.reply(
-      "You need to create or join a team before using tasks.\n\nUse /start to get started."
+      "You need to create or join a team before viewing the board.\n\nUse /start to get started."
     );
     return;
   }
 
   const team = teams[0];
-  const buttonParams = {
+  const summary = await getBoardSummary(team.id, apiUser.id);
+
+  const lines: string[] = [
+    `<b>Team Board: ${team.name}</b>`,
+    "",
+    `Todo: ${summary.todo}`,
+    `Doing: ${summary.doing}`,
+    `Blocked: ${summary.blocked}`,
+    `Done: ${summary.done}`,
+  ];
+
+  if (summary.dueSoon > 0) {
+    lines.push(`\nDue Soon: ${summary.dueSoon}`);
+  }
+  if (summary.overdue > 0) {
+    lines.push(`Overdue: ${summary.overdue}`);
+  }
+  if (summary.unassigned > 0) {
+    lines.push(`Unassigned: ${summary.unassigned}`);
+  }
+
+  lines.push("\nOpen the board to view and manage tasks.");
+
+  const params = {
     telegramUserId: from.id,
     teamId: team.id,
     returnChatId: chatId,
   };
 
-  const summary = await getBoardSummary(team.id, apiUser.id);
-
-  const lines = [
-    "<b>Team Board</b>\n",
-    `Todo: ${summary.todo}`,
-    `Doing: ${summary.doing}`,
-    `Blocked: ${summary.blocked}`,
-    `Done: ${summary.done}`,
-    `\nOpen the Mini App to view the board.`,
-  ];
-
   const keyboard: InlineKeyboardMarkup = {
-    inline_keyboard: [[buildBoardButton(buttonParams)]],
+    inline_keyboard: [[buildBoardButton(params)]],
   };
 
   await ctx.reply(lines.join("\n"), { reply_markup: keyboard });

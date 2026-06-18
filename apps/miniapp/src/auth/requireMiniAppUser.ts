@@ -270,6 +270,8 @@ function actionToPath(ctx: MiniAppContext): string {
       return "/app/team/join-requests";
     case "team_settings":
       return "/app/team/settings";
+    case "view_blocked_tasks":
+      return `/app/board/${ctx.teamId}?status=blocked`;
     default:
       return "/app/tasks/mine";
   }

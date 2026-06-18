@@ -1,6 +1,6 @@
 import { getDb } from "@telegram-team/db";
 import { tasks, taskComments, taskEvents, users as usersTable } from "@telegram-team/db";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, lt, isNull } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
 import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
 import { createNotification } from "./notification.service.js";
@@ -200,6 +200,107 @@ export async function listTeamBoard(teamId: string): Promise<BoardColumn[]> {
       count: colTasks.length,
     };
   });
+}
+
+export interface BoardSummary {
+  teamId: string;
+  totalTasks: number;
+  todoCount: number;
+  doingCount: number;
+  blockedCount: number;
+  doneCount: number;
+  cancelledCount: number;
+  dueSoonCount: number;
+  overdueCount: number;
+  unassignedCount: number;
+  myTaskCount: number;
+  topBlockedTasks: Array<{
+    id: string;
+    title: string;
+    assignedToUserId: string | null;
+    assigneeName: string | null;
+  }>;
+}
+
+export async function getBoardSummary(
+  teamId: string,
+  requestedUserId: string
+): Promise<BoardSummary> {
+  const db = getDb();
+  const allTasks = await db
+    .select()
+    .from(tasks)
+    .where(eq(tasks.teamId, teamId));
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 2);
+  const dueSoonCutoff = tomorrow.toISOString().slice(0, 10);
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const todoCount = allTasks.filter((t) => t.status === "todo").length;
+  const doingCount = allTasks.filter((t) => t.status === "doing").length;
+  const blockedCount = allTasks.filter((t) => t.status === "blocked").length;
+  const doneCount = allTasks.filter((t) => t.status === "done").length;
+  const cancelledCount = allTasks.filter((t) => t.status === "cancelled").length;
+
+  const dueSoonCount = allTasks.filter(
+    (t) =>
+      t.status !== "done" &&
+      t.status !== "cancelled" &&
+      t.dueAt &&
+      t.dueAt <= dueSoonCutoff &&
+      t.dueAt >= todayStr
+  ).length;
+
+  const overdueCount = allTasks.filter(
+    (t) =>
+      t.status !== "done" &&
+      t.status !== "cancelled" &&
+      t.dueAt &&
+      t.dueAt < todayStr
+  ).length;
+
+  const unassignedCount = allTasks.filter(
+    (t) =>
+      t.status !== "done" &&
+      t.status !== "cancelled" &&
+      !t.assignedToUserId
+  ).length;
+
+  const myTaskCount = allTasks.filter(
+    (t) =>
+      t.assignedToUserId === requestedUserId &&
+      t.status !== "done" &&
+      t.status !== "cancelled"
+  ).length;
+
+  const blockedTasks = allTasks.filter((t) => t.status === "blocked");
+  const topBlockedTasks = await Promise.all(
+    blockedTasks.slice(0, 5).map(async (t) => ({
+      id: t.id,
+      title: t.title,
+      assignedToUserId: t.assignedToUserId,
+      assigneeName: t.assignedToUserId
+        ? await getUserName(t.assignedToUserId)
+        : null,
+    }))
+  );
+
+  return {
+    teamId,
+    totalTasks: allTasks.length,
+    todoCount,
+    doingCount,
+    blockedCount,
+    doneCount,
+    cancelledCount,
+    dueSoonCount,
+    overdueCount,
+    unassignedCount,
+    myTaskCount,
+    topBlockedTasks,
+  };
 }
 
 export async function updateTask(

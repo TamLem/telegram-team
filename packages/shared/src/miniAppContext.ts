@@ -17,7 +17,8 @@ export type MiniAppAction =
   | "view_members"
   | "manage_invite"
   | "review_join_requests"
-  | "team_settings";
+  | "team_settings"
+  | "view_blocked_tasks";
 
 export interface MiniAppContext {
   action: MiniAppAction;

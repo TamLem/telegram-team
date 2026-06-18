@@ -107,11 +107,23 @@ export async function getMyTaskSummary(
 }
 
 export interface BoardSummary {
+  teamId: string;
+  totalTasks: number;
   todo: number;
   doing: number;
   blocked: number;
   done: number;
   cancelled: number;
+  dueSoon: number;
+  overdue: number;
+  unassigned: number;
+  myTask: number;
+  topBlockedTasks: Array<{
+    id: string;
+    title: string;
+    assignedToUserId: string | null;
+    assigneeName: string | null;
+  }>;
 }
 
 export async function getBoardSummary(
@@ -119,21 +131,43 @@ export async function getBoardSummary(
   userId: string
 ): Promise<BoardSummary> {
   try {
-    const { columns } = await apiFetch<{
-      columns: Array<{ status: string; count: number }>;
-    }>(`/api/teams/${teamId}/board`, {
-      headers: { "X-User-Id": userId },
-    });
-    const summary: BoardSummary = { todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0 };
-    for (const col of columns) {
-      if (col.status === "todo") summary.todo = col.count;
-      else if (col.status === "doing") summary.doing = col.count;
-      else if (col.status === "blocked") summary.blocked = col.count;
-      else if (col.status === "done") summary.done = col.count;
-      else if (col.status === "cancelled") summary.cancelled = col.count;
-    }
-    return summary;
+    const raw = await apiFetch<{
+      teamId: string;
+      totalTasks: number;
+      todoCount: number;
+      doingCount: number;
+      blockedCount: number;
+      doneCount: number;
+      cancelledCount: number;
+      dueSoonCount: number;
+      overdueCount: number;
+      unassignedCount: number;
+      myTaskCount: number;
+      topBlockedTasks: Array<{
+        id: string;
+        title: string;
+        assignedToUserId: string | null;
+        assigneeName: string | null;
+      }>;
+    }>(
+      `/api/teams/${teamId}/board-summary`,
+      { headers: { "X-User-Id": userId } }
+    );
+    return {
+      teamId: raw.teamId,
+      totalTasks: raw.totalTasks,
+      todo: raw.todoCount,
+      doing: raw.doingCount,
+      blocked: raw.blockedCount,
+      done: raw.doneCount,
+      cancelled: raw.cancelledCount,
+      dueSoon: raw.dueSoonCount,
+      overdue: raw.overdueCount,
+      unassigned: raw.unassignedCount,
+      myTask: raw.myTaskCount,
+      topBlockedTasks: raw.topBlockedTasks,
+    };
   } catch {
-    return { todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0 };
+    return { teamId: "", totalTasks: 0, todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0, dueSoon: 0, overdue: 0, unassigned: 0, myTask: 0, topBlockedTasks: [] };
   }
 }

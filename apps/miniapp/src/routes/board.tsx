@@ -11,10 +11,18 @@ boardRoutes.use("*", requireMiniAppContext());
 boardRoutes.get("/board/:teamId", async (c) => {
   const { teamId } = c.req.param();
   const apiUser = c.get("apiUser");
+  const filterStatus = c.req.query("status") ?? null;
 
   const { columns } = await getBoard(teamId, apiUser.id);
 
-  return c.render(<BoardPage teamId={teamId} columns={columns} ctx={c.req.query("ctx")} />);
+  return c.render(
+    <BoardPage
+      teamId={teamId}
+      columns={columns}
+      filterStatus={filterStatus}
+      ctx={c.req.query("ctx")}
+    />
+  );
 });
 
 export { boardRoutes };
