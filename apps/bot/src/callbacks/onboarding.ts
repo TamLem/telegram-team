@@ -1,6 +1,8 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { escapeHtml } from "../telegram/html.js";
+import { miniAppLaunchUrl } from "../telegram/webApp.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -73,6 +75,19 @@ async function getActiveTeams(userId: string) {
   }
 }
 
+async function getAdminContacts(userId: string, teamId: string, requestId: string) {
+  const { admins } = await apiFetch<{
+    admins: Array<{
+      telegramUserId: number;
+      telegramUsername: string | null;
+      firstName: string;
+    }>;
+  }>(`/api/teams/${teamId}/admin-contacts?request_id=${requestId}`, {
+    headers: { "X-User-Id": userId },
+  });
+  return admins;
+}
+
 export async function onboardingCallback(
   ctx: BotContext,
   match: RegExpMatchArray | null
@@ -116,7 +131,10 @@ export async function onboardingCallback(
     const apiUser = await syncUser(from);
 
     try {
-      const { request } = await apiFetch<{ request: { userId: string; teamId: string } }>(
+      const { request, user } = await apiFetch<{
+        request: { userId: string; teamId: string };
+        user: { telegramUserId: number };
+      }>(
         `/api/teams/${teamId}/join-requests/${requestId}/approve`,
         {
           method: "POST",
@@ -129,8 +147,9 @@ export async function onboardingCallback(
 
       const teams = await getActiveTeams(request.userId);
       if (teams.length > 0) {
-        await ctx.reply(
-          `Your join request for <b>${teams[0].name}</b> has been approved! You can now use the bot.`
+        await ctx.bot.api.sendMessage(
+          user.telegramUserId,
+          `Your join request for <b>${escapeHtml(teams[0].name)}</b> has been approved! You can now use the bot.`
         );
       }
     } catch (err) {
@@ -149,7 +168,10 @@ export async function onboardingCallback(
     const apiUser = await syncUser(from);
 
     try {
-      const { request } = await apiFetch<{ request: { userId: string; teamId: string } }>(
+      const { request, user } = await apiFetch<{
+        request: { userId: string; teamId: string };
+        user: { telegramUserId: number };
+      }>(
         `/api/teams/${teamId}/join-requests/${requestId}/reject`,
         {
           method: "POST",
@@ -160,7 +182,8 @@ export async function onboardingCallback(
       await ctx.editMessageText("Join request rejected.");
       await ctx.answerCallbackQuery("Rejected.");
 
-      await ctx.reply(
+      await ctx.bot.api.sendMessage(
+        user.telegramUserId,
         "Your join request has been rejected. Use /start to try again."
       );
     } catch (err) {
@@ -184,7 +207,17 @@ export async function onboardingCallback(
     if (teams.length > 0) {
       const keyboard: InlineKeyboardMarkup = {
         inline_keyboard: [
-          [{ text: "Open Kanban Board", web_app: { url: `${MINIAPP_BASE_URL}/app/board/${teams[0].id}` } }],
+          [
+            {
+              text: "Open Kanban Board",
+              web_app: {
+                url: miniAppLaunchUrl(
+                  MINIAPP_BASE_URL,
+                  `/app/board/${teams[0].id}`
+                ),
+              },
+            },
+          ],
         ],
       };
       await ctx.reply("Tap below to open the board:", {
@@ -202,7 +235,7 @@ export async function onboardingCallback(
     const teams = await getActiveTeams(apiUser.id);
     if (teams.length > 0) {
       await ctx.reply(
-        `Share this invite code with your team members:\n\n<code>${teams[0].inviteCode}</code>\n\nThey can use /start → Join Team to enter this code.`
+        `Share this invite code with your team members:\n\n<code>${escapeHtml(teams[0].inviteCode)}</code>\n\nThey can use /start → Join Team to enter this code.`
       );
     }
     await ctx.answerCallbackQuery();
@@ -255,8 +288,8 @@ export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
       };
 
       await ctx.reply(
-        `Team created: <b>${team.name}</b>\n\n` +
-          `Invite code: <code>${team.inviteCode}</code>\n\n` +
+        `Team created: <b>${escapeHtml(team.name)}</b>\n\n` +
+          `Invite code: <code>${escapeHtml(team.inviteCode)}</code>\n\n` +
           `You can now create tasks, invite members, or open the team board.`,
         { reply_markup: keyboard }
       );
@@ -287,32 +320,35 @@ export async function onboardingMessageHandler(ctx: BotContext): Promise<void> {
       );
 
       const { team } = await apiFetch<{ team: { createdByUserId: string; name: string } }>(
-        `/api/teams/${request.teamId}`
+        `/api/teams/${request.teamId}?request_id=${request.id}`,
+        { headers: { "X-User-Id": apiUser.id } }
       );
 
-      const { requests } = await apiFetch<{
-        requests: Array<{ id: string; user: { telegramUserId: number; telegramUsername: string | null; firstName: string } }>;
-      }>(`/api/teams/${request.teamId}/join-requests`, {
-        headers: { "X-User-Id": apiUser.id },
-      });
+      const admins = await getAdminContacts(apiUser.id, request.teamId, request.id);
+      const adminKeyboard: InlineKeyboardMarkup = {
+        inline_keyboard: [
+          [
+            { text: "Approve", callback_data: `onboard:approve:${request.teamId}:${request.id}` },
+            { text: "Reject", callback_data: `onboard:reject:${request.teamId}:${request.id}` },
+          ],
+        ],
+      };
 
-      const pendingRequest = requests.find((r) => r.user.telegramUserId === from.id);
+      await Promise.all(
+        admins.map((admin) =>
+          ctx.bot.api.sendMessage(
+            admin.telegramUserId,
+            `New join request for <b>${escapeHtml(team.name)}</b>:\n\n` +
+              `User: ${escapeHtml(from.first_name)}${from.username ? ` (@${escapeHtml(from.username)})` : ""}\n\n` +
+              `Approve or reject this request.`,
+            { reply_markup: adminKeyboard }
+          )
+        )
+      );
 
-      if (pendingRequest) {
-          const adminKeyboard: InlineKeyboardMarkup = {
-            inline_keyboard: [
-              [
-                { text: "Approve", callback_data: `onboard:approve:${request.teamId}:${pendingRequest.id}` },
-                { text: "Reject", callback_data: `onboard:reject:${request.teamId}:${pendingRequest.id}` },
-              ],
-            ],
-          };
-
+      if (admins.length === 0) {
         await ctx.reply(
-          `New join request for <b>${team.name}</b>:\n\n` +
-            `User: ${from.first_name}${from.username ? ` (@${from.username})` : ""}\n\n` +
-            `Admins: please approve or reject this request.`,
-          { reply_markup: adminKeyboard }
+          "No team admins could be notified. Ask a team admin to open the app and review pending requests."
         );
       }
     } catch (err) {

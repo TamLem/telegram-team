@@ -2,6 +2,8 @@ import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
 import { getUserState } from "../callbacks/onboarding.js";
+import { escapeHtml } from "../telegram/html.js";
+import { miniAppLaunchUrl } from "../telegram/webApp.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -99,14 +101,14 @@ export async function myTasksCommand(ctx: BotContext): Promise<void> {
             : []),
         ],
         [
-          { text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` } },
+          { text: "Open Details", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${task.id}`) } },
         ],
       ].filter((row) => row.length > 0),
     };
 
     await ctx.reply(
-      `${icon} <b>${task.title}</b>\n` +
-        `Status: ${task.status} | Priority: ${task.priority}`,
+      `${icon} <b>${escapeHtml(task.title)}</b>\n` +
+        `Status: ${escapeHtml(task.status)} | Priority: ${escapeHtml(task.priority)}`,
       { reply_markup: keyboard }
     );
   }

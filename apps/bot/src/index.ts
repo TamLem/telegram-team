@@ -6,15 +6,10 @@ import {
   extractCommandArgs,
 } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
-import { startCommand } from "./commands/start.js";
-import { helpCommand } from "./commands/help.js";
-import { newTaskCommand } from "./commands/newtask.js";
-import { myTasksCommand } from "./commands/mytasks.js";
-import { boardCommand } from "./commands/board.js";
-import { taskCallback } from "./callbacks/task.js";
-import { onboardingCallback, onboardingMessageHandler } from "./callbacks/onboarding.js";
 import { PollingSource } from "./updateSources/polling.js";
 import { createWebhookApp } from "./updateSources/webhook.js";
+import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
+import { logError } from "./logger.js";
 
 const botToken = getEnv("BOT_TOKEN");
 const updateMode = process.env.BOT_UPDATE_MODE ?? "webhook";
@@ -25,28 +20,39 @@ bot.use(logMiddleware());
 bot.use(requireUser());
 bot.use(extractCommandArgs());
 
-bot.command("/start", startCommand);
-bot.command("/help", helpCommand);
-bot.command("/newtask", newTaskCommand);
-bot.command("/mytasks", myTasksCommand);
-bot.command("/board", boardCommand);
-
-bot.callback(/^onboard:/, onboardingCallback);
-bot.callback(/^task:/, taskCallback);
-
-bot.message(onboardingMessageHandler);
+registerBotInteractions(bot);
 
 bot.onError(async (error, ctx) => {
-  console.error("[bot] error:", error.message);
+  logError("[bot] update error", error, {
+    updateId: ctx.update.update_id,
+    userId: ctx.userId,
+    chatId: ctx.chatId,
+    callbackData: ctx.callbackData,
+    text: ctx.text,
+  });
   try {
     await ctx.reply("Something went wrong. Please try again.");
-  } catch {
-    // ignore reply errors in error handler
+  } catch (replyError) {
+    logError("[bot] failed to send error reply", replyError, {
+      updateId: ctx.update.update_id,
+      chatId: ctx.chatId,
+    });
   }
 });
 
 async function main() {
   console.log(`[bot] update mode: ${updateMode}`);
+
+  await bot.api
+    .getMe()
+    .then(async (me) => {
+      bot.setBotUsername(me.username);
+      await bot.api.setMyCommands(BOT_COMMANDS);
+      console.log(`[bot] running as @${me.username ?? me.id}`);
+    })
+    .catch((err) => {
+      logError("[bot] failed to initialize bot metadata", err);
+    });
 
   if (updateMode === "polling") {
     const polling = new PollingSource(bot.api, bot);
@@ -81,7 +87,7 @@ async function main() {
           console.log(`[webhook] set to ${webhookUrl}`);
         })
         .catch((err) => {
-          console.error("[webhook] failed to set:", err.message);
+          logError("[webhook] failed to set", err, { webhookUrl });
         });
     }
 
@@ -98,6 +104,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("[bot] fatal:", err);
+  logError("[bot] fatal", err);
   process.exit(1);
 });

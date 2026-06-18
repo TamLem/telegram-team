@@ -4,6 +4,11 @@ export type CommandHandler = (ctx: BotContext) => Promise<void>;
 
 export class CommandRouter {
   private commands = new Map<string, CommandHandler>();
+  private botUsername: string | null = null;
+
+  setBotUsername(username: string | null | undefined): void {
+    this.botUsername = username ? username.toLowerCase() : null;
+  }
 
   add(name: string, handler: CommandHandler): void {
     this.commands.set(name, handler);
@@ -18,7 +23,14 @@ export class CommandRouter {
 
     const parts = trimmed.split(/\s+/);
     const commandStr = parts[0];
-    const commandName = commandStr.split("@")[0];
+    const [commandName, targetUsername] = commandStr.split("@");
+
+    if (
+      targetUsername &&
+      (!this.botUsername || targetUsername.toLowerCase() !== this.botUsername)
+    ) {
+      return false;
+    }
 
     const handler = this.commands.get(commandName);
     if (!handler) return false;

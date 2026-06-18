@@ -2,6 +2,7 @@ import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
 import { getUserState } from "../callbacks/onboarding.js";
+import { miniAppLaunchUrl } from "../telegram/webApp.js";
 
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
@@ -56,7 +57,7 @@ export async function boardCommand(ctx: BotContext): Promise<void> {
       [
         {
           text: "Open Kanban Board",
-          web_app: { url: `${MINIAPP_BASE_URL}/app/board/${activeTeamId}` },
+          web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/board/${activeTeamId}`) },
         },
       ],
     ],

@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 export interface TelegramUser {
   id: number;
@@ -10,7 +10,8 @@ export interface TelegramUser {
 
 export function validateTelegramInitData(
   initData: string,
-  botToken: string
+  botToken: string,
+  options: { maxAgeSeconds?: number; now?: number } = {}
 ): { valid: boolean; user?: TelegramUser } {
   const params = new URLSearchParams(initData);
 
@@ -31,13 +32,35 @@ export function validateTelegramInitData(
     .update(dataCheckString)
     .digest("hex");
 
-  if (computedHash !== hash) {
+  const hashBuffer = Buffer.from(hash, "hex");
+  const computedHashBuffer = Buffer.from(computedHash, "hex");
+  if (
+    hashBuffer.length !== computedHashBuffer.length ||
+    !timingSafeEqual(hashBuffer, computedHashBuffer)
+  ) {
+    return { valid: false };
+  }
+
+  const authDate = Number(params.get("auth_date"));
+  const maxAgeSeconds = options.maxAgeSeconds ?? 86_400;
+  const now = options.now ?? Math.floor(Date.now() / 1000);
+  if (
+    !Number.isFinite(authDate) ||
+    authDate <= 0 ||
+    authDate > now + 60 ||
+    now - authDate > maxAgeSeconds
+  ) {
     return { valid: false };
   }
 
   const userStr = params.get("user");
   if (!userStr) return { valid: false };
 
-  const user = JSON.parse(userStr) as TelegramUser;
-  return { valid: true, user };
+  try {
+    const user = JSON.parse(userStr) as TelegramUser;
+    if (!user.id || !user.first_name) return { valid: false };
+    return { valid: true, user };
+  } catch {
+    return { valid: false };
+  }
 }

@@ -6,6 +6,7 @@
     "dev": "pnpm build && tsx scripts/dev.ts",
     "dev:no-tunnel": "tsx scripts/dev.ts --no-tunnel",
     "build": "pnpm -r run build",
+    "test": "pnpm build && tsx --test \"packages/*/src/**/*.test.ts\" \"apps/*/src/**/*.test.ts\"",
     "clean": "pnpm -r run clean",
     "db:migrate": "pnpm --filter @telegram-team/db run migrate",
     "db:generate": "pnpm --filter @telegram-team/db run generate",

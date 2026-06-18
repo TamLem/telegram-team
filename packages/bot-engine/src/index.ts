@@ -1,6 +1,7 @@
 export { createBot, Bot } from "./bot.js";
 export { BotContext } from "./context.js";
-export { TelegramApi } from "./api.js";
+export { TelegramApi, TelegramApiError } from "./api.js";
+export type { TelegramApiErrorDetails } from "./api.js";
 export { CommandRouter } from "./router.js";
 export { CallbackRouter } from "./callbacks.js";
 export { composeMiddleware } from "./middleware.js";
@@ -23,8 +24,10 @@ export type {
   InlineKeyboardMarkup,
   ReplyKeyboardMarkup,
   KeyboardButton,
+  BotCommand,
 } from "./types.js";
 export type { Middleware } from "./middleware.js";
 export type { CommandHandler } from "./router.js";
 export type { CallbackHandler } from "./callbacks.js";
 export type { MessageHandler, ErrorHandler } from "./bot.js";
+export type { HandleUpdateResult } from "./bot.js";

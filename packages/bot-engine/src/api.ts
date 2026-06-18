@@ -8,7 +8,25 @@ import type {
   GetUpdatesParams,
   DeleteWebhookParams,
   InlineKeyboardMarkup,
+  BotCommand,
 } from "./types.js";
+
+export interface TelegramApiErrorDetails {
+  method: string;
+  status?: number;
+  errorCode?: number;
+  description?: string;
+}
+
+export class TelegramApiError extends Error {
+  details: TelegramApiErrorDetails;
+
+  constructor(message: string, details: TelegramApiErrorDetails, cause?: unknown) {
+    super(message, { cause });
+    this.name = "TelegramApiError";
+    this.details = details;
+  }
+}
 
 export class TelegramApi {
   private token: string;
@@ -23,17 +41,41 @@ export class TelegramApi {
     method: string,
     body: Record<string, unknown>
   ): Promise<T> {
-    const response = await fetch(`${this.baseUrl}/${method}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/${method}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      throw new TelegramApiError(
+        `Telegram API request failed before response: ${method}`,
+        { method },
+        error
+      );
+    }
 
-    const data = (await response.json()) as TelegramResponse<T>;
+    let data: TelegramResponse<T>;
+    try {
+      data = (await response.json()) as TelegramResponse<T>;
+    } catch (error) {
+      throw new TelegramApiError(
+        `Telegram API returned an invalid JSON response: ${method}`,
+        { method, status: response.status },
+        error
+      );
+    }
 
-    if (!data.ok) {
-      throw new Error(
-        `Telegram API error: ${data.description ?? "unknown"} (code: ${data.error_code ?? "?"})`
+    if (!response.ok || !data.ok) {
+      throw new TelegramApiError(
+        `Telegram API error in ${method}: ${data.description ?? response.statusText ?? "unknown"} (code: ${data.error_code ?? response.status})`,
+        {
+          method,
+          status: response.status,
+          errorCode: data.error_code,
+          description: data.description,
+        }
       );
     }
 
@@ -132,6 +174,10 @@ export class TelegramApi {
       body.secret_token = secretToken;
     }
     return this.request<true>("setWebhook", body);
+  }
+
+  async setMyCommands(commands: BotCommand[]): Promise<true> {
+    return this.request<true>("setMyCommands", { commands });
   }
 
   async deleteWebhook(params?: DeleteWebhookParams): Promise<true> {

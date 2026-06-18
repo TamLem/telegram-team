@@ -9,6 +9,10 @@ import { BotContext as Context } from "./context.js";
 
 export type MessageHandler = (ctx: BotContext) => Promise<void>;
 export type ErrorHandler = (error: Error, ctx: BotContext) => Promise<void>;
+export interface HandleUpdateResult {
+  ok: boolean;
+  error?: Error;
+}
 
 export class Bot {
   token: string;
@@ -38,6 +42,11 @@ export class Bot {
     return this;
   }
 
+  setBotUsername(username: string | null | undefined): this {
+    this.commandRouter.setBotUsername(username);
+    return this;
+  }
+
   callback(pattern: string | RegExp, handler: CallbackHandler): this {
     this.callbackRouter.add(pattern, handler);
     return this;
@@ -60,7 +69,7 @@ export class Bot {
     return this.composedMiddleware;
   }
 
-  async handleUpdate(update: TelegramUpdate): Promise<void> {
+  async handleUpdate(update: TelegramUpdate): Promise<HandleUpdateResult> {
     const ctx = new Context(update, this);
 
     try {
@@ -78,12 +87,24 @@ export class Bot {
           await this.runMessageHandlers(ctx);
         }
       }
+      return { ok: true };
     } catch (error) {
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
       if (this.errorHandler) {
-        await this.errorHandler(error as Error, ctx);
+        try {
+          await this.errorHandler(normalizedError, ctx);
+        } catch (handlerError) {
+          const normalizedHandlerError =
+            handlerError instanceof Error
+              ? handlerError
+              : new Error(String(handlerError));
+          return { ok: false, error: normalizedHandlerError };
+        }
       } else {
         console.error("Unhandled bot error:", error);
       }
+      return { ok: false, error: normalizedError };
     }
   }
 

@@ -147,10 +147,14 @@ export async function getMyTasks(userId: string): Promise<TaskResponse[]> {
   return res.tasks;
 }
 
-export async function getTask(taskId: string): Promise<TaskResponse | null> {
+export async function getTask(
+  taskId: string,
+  userId: string
+): Promise<TaskResponse | null> {
   try {
     const res = await apiFetch<{ task: TaskResponse }>(
-      `/api/tasks/${taskId}`
+      `/api/tasks/${taskId}`,
+      { headers: { "X-User-Id": userId } }
     );
     return res.task;
   } catch {
@@ -158,16 +162,24 @@ export async function getTask(taskId: string): Promise<TaskResponse | null> {
   }
 }
 
-export async function getTaskComments(taskId: string): Promise<CommentResponse[]> {
+export async function getTaskComments(
+  taskId: string,
+  userId: string
+): Promise<CommentResponse[]> {
   const res = await apiFetch<{ comments: CommentResponse[] }>(
-    `/api/tasks/${taskId}/comments`
+    `/api/tasks/${taskId}/comments`,
+    { headers: { "X-User-Id": userId } }
   );
   return res.comments;
 }
 
-export async function getTaskEvents(taskId: string): Promise<EventResponse[]> {
+export async function getTaskEvents(
+  taskId: string,
+  userId: string
+): Promise<EventResponse[]> {
   const res = await apiFetch<{ events: EventResponse[] }>(
-    `/api/tasks/${taskId}/events`
+    `/api/tasks/${taskId}/events`,
+    { headers: { "X-User-Id": userId } }
   );
   return res.events;
 }

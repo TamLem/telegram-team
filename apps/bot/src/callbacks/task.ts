@@ -1,6 +1,8 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
+import { escapeHtml } from "../telegram/html.js";
+import { miniAppLaunchUrl } from "../telegram/webApp.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -39,6 +41,29 @@ const PRIORITY_LABELS: Record<string, string> = {
   urgent: "Urgent",
 };
 
+export function parseTaskCallbackData(data: string): {
+  action: string;
+  subAction?: string;
+  taskId?: string;
+} | null {
+  const parts = data.split(":");
+  if (parts[0] !== "task") return null;
+
+  const action = parts[1];
+  if (!action) return null;
+
+  if (action === "status") {
+    const subAction = parts[2];
+    const taskId = parts[3];
+    if (!subAction || !taskId || parts.length !== 4) return null;
+    return { action, subAction, taskId };
+  }
+
+  const taskId = parts[2];
+  if (!taskId || parts.length !== 3) return null;
+  return { action, taskId };
+}
+
 function buildTaskCard(task: {
   id: string;
   title: string;
@@ -53,7 +78,7 @@ function buildTaskCard(task: {
   const due = task.dueAt ? new Date(task.dueAt).toLocaleDateString() : "Not set";
 
   return (
-    `<b>Task:</b> ${task.title}\n` +
+    `<b>Task:</b> ${escapeHtml(task.title)}\n` +
     `<b>Status:</b> ${status}\n` +
     `<b>Priority:</b> ${priority}\n` +
     `<b>Assigned:</b> ${assigned}\n` +
@@ -77,7 +102,7 @@ function statusKeyboard(taskId: string, currentStatus: string): InlineKeyboardMa
   return {
     inline_keyboard: [
       buttons,
-      [{ text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` } }],
+      [{ text: "Open Details", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${taskId}`) } }],
     ],
   };
 }
@@ -86,17 +111,22 @@ export async function taskCallback(
   ctx: BotContext,
   match: RegExpMatchArray | null
 ): Promise<void> {
-  if (!match) return;
+  const data = ctx.callbackData;
+  if (!data) {
+    await ctx.answerCallbackQuery("Unsupported task action");
+    return;
+  }
 
   const from = ctx.from;
   if (!from) return;
 
-  const parts = match[0].split(":");
-  const action = parts[1];
-  const subAction = parts[2];
-  const taskId = parts[3];
+  const parsed = parseTaskCallbackData(data);
+  if (!parsed?.taskId) {
+    await ctx.answerCallbackQuery("Unsupported task action");
+    return;
+  }
 
-  if (!taskId) return;
+  const { action, subAction, taskId } = parsed;
 
   const apiUser = await syncUser(from);
 
@@ -167,7 +197,7 @@ export async function taskCallback(
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "Open Details", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${task.id}` } }],
+            [{ text: "Open Details", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${task.id}`) } }],
           ],
         },
       }
@@ -183,7 +213,7 @@ export async function taskCallback(
       {
         reply_markup: {
           inline_keyboard: [
-            [{ text: "Open Task", web_app: { url: `${MINIAPP_BASE_URL}/app/tasks/${taskId}` } }],
+            [{ text: "Open Task", web_app: { url: miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${taskId}`) } }],
           ],
         },
       }
@@ -191,4 +221,6 @@ export async function taskCallback(
     await ctx.answerCallbackQuery();
     return;
   }
+
+  await ctx.answerCallbackQuery("Unsupported task action");
 }

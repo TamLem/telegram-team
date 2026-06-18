@@ -41,17 +41,18 @@ tasksRoutes.get("/tasks/mine", async (c) => {
 
 tasksRoutes.get("/tasks/:id", async (c) => {
   const { id } = c.req.param();
-  const task = await getTask(id);
+  const apiUser = c.get("apiUser");
+  const task = await getTask(id, apiUser.id);
 
   let comments: any[] = [];
   let events: any[] = [];
 
   if (task) {
     try {
-      comments = await getTaskComments(task.id);
+      comments = await getTaskComments(task.id, apiUser.id);
     } catch {}
     try {
-      events = await getTaskEvents(task.id);
+      events = await getTaskEvents(task.id, apiUser.id);
     } catch {}
   }
 

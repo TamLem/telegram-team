@@ -125,11 +125,13 @@ tasksRouter.get("/tasks/:taskId", async (c) => {
   }
 
   const userId = getUserId(c);
-  if (userId) {
-    const member = await getTeamMember(task.teamId, userId);
-    if (!member) {
-      return c.json({ error: "Access denied" }, 403);
-    }
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const member = await getTeamMember(task.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
   }
 
   return c.json({ task });
@@ -249,6 +251,20 @@ tasksRouter.post(
 tasksRouter.get("/tasks/:taskId/comments", async (c) => {
   const { taskId } = c.req.param();
   const db = getDb();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const existing = await getTaskById(taskId);
+  if (!existing) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const member = await getTeamMember(existing.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
 
   const comments = await getTaskComments(taskId);
 
@@ -300,6 +316,21 @@ tasksRouter.post(
 
 tasksRouter.get("/tasks/:taskId/events", async (c) => {
   const { taskId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const existing = await getTaskById(taskId);
+  if (!existing) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const member = await getTeamMember(existing.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
   const events = await getTaskEvents(taskId);
   return c.json({ events });
 });

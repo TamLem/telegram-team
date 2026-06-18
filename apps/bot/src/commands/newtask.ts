@@ -2,6 +2,8 @@ import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
 import { getUserState, setUserState } from "../callbacks/onboarding.js";
+import { escapeHtml } from "../telegram/html.js";
+import { miniAppLaunchUrl } from "../telegram/webApp.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -107,7 +109,7 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
     };
   };
 
-  const taskUrl = `${MINIAPP_BASE_URL}/app/tasks/${task.id}`;
+  const taskUrl = miniAppLaunchUrl(MINIAPP_BASE_URL, `/app/tasks/${task.id}`);
 
   const keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [
@@ -124,8 +126,8 @@ export async function newTaskCommand(ctx: BotContext): Promise<void> {
   const priority = PRIORITY_LABELS[task.priority] ?? task.priority;
 
   await ctx.reply(
-    `<b>Task Created</b>\n\n` +
-      `<b>Title:</b> ${task.title}\n` +
+      `<b>Task Created</b>\n\n` +
+      `<b>Title:</b> ${escapeHtml(task.title)}\n` +
       `<b>Status:</b> ${status}\n` +
       `<b>Priority:</b> ${priority}\n`,
     { reply_markup: keyboard }

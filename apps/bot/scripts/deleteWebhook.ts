@@ -1,5 +1,6 @@
 import { getEnv } from "@telegram-team/config";
 import { TelegramApi } from "@telegram-team/bot-engine";
+import { logError } from "../src/logger.js";
 
 const token = getEnv("BOT_TOKEN");
 const api = new TelegramApi(token);
@@ -16,6 +17,6 @@ api
     }
   })
   .catch((err) => {
-    console.error("Failed to delete webhook:", err.message);
+    logError("[telegram:delete-webhook] failed", err, { dropPending });
     process.exit(1);
   });

@@ -107,6 +107,11 @@ export interface InlineKeyboardMarkup {
   inline_keyboard: InlineKeyboardButton[][];
 }
 
+export interface BotCommand {
+  command: string;
+  description: string;
+}
+
 export interface ReplyKeyboardMarkup {
   keyboard: KeyboardButton[][];
   resize_keyboard?: boolean;

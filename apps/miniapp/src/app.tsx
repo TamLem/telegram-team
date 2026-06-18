@@ -4,6 +4,7 @@ import { Layout } from "./views/layout.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { boardRoutes } from "./routes/board.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
+import { launchRoutes } from "./routes/launch.js";
 import type { AppVariables } from "./auth/requireMiniAppUser.js";
 
 const app = new Hono<{ Variables: AppVariables }>();
@@ -15,6 +16,7 @@ app.get(
   })
 );
 
+app.route("/app", launchRoutes);
 app.route("/app", onboardingRoutes);
 app.route("/app", tasksRoutes);
 app.route("/app", boardRoutes);
