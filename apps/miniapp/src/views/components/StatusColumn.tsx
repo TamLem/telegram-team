@@ -14,7 +14,9 @@ export const StatusColumn: FC<{
   status: string;
   label?: string;
   tasks: TaskResponse[];
-}> = ({ status, label, tasks }) => {
+  ctx?: string;
+  teamId?: string;
+}> = ({ status, label, tasks, ctx, teamId }) => {
   return (
     <div class="column">
       <div class="column-header">
@@ -26,7 +28,7 @@ export const StatusColumn: FC<{
           No tasks
         </div>
       ) : (
-        tasks.map((task) => <TaskCard task={task} />)
+        tasks.map((task) => <TaskCard task={task} ctx={ctx} teamId={teamId} showActions />)
       )}
     </div>
   );
