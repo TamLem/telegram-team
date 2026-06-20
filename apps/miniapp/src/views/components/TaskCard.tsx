@@ -29,9 +29,74 @@ export const TaskCard: FC<{
   ctx?: string;
   teamId?: string;
   showActions?: boolean;
-}> = ({ task, ctx, teamId, showActions }) => {
+  variant?: "default" | "board";
+}> = ({ task, ctx, teamId, showActions, variant }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const isBoard = variant === "board";
 
+  if (isBoard) {
+    // Compact inline board card
+    return (
+      <div class="board-task">
+        <a
+          href={`/app/tasks/${task.id}${ctxQuery}`}
+          class="board-task-main"
+        >
+          <div class="board-task-body">
+            <div class="board-task-title">{task.title}</div>
+            <div class="board-task-meta">
+              <span class={`badge badge-${task.priority}`} style="font-size: 10px; padding: 2px 6px;">
+                {PRIORITY_LABELS[task.priority] ?? task.priority}
+              </span>
+              {task.dueAt && (
+                <span class="board-task-due">
+                  {(() => {
+                    const d = new Date(task.dueAt);
+                    const now = new Date();
+                    const tomorrow = new Date(now);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    if (d.toDateString() === now.toDateString()) return "Today";
+                    if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+                    return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+                  })()}
+                </span>
+              )}
+              {!task.assignedToUserId && (
+                <span class="board-task-unassigned">Unassigned</span>
+              )}
+            </div>
+          </div>
+          <svg class="board-task-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </a>
+
+        {showActions && NEXT_STATUS[task.status] && (
+          <div class="board-task-actions">
+            <form
+              method="post"
+              action={`/app/tasks/${task.id}/status${ctxQuery}`}
+              style="flex: 1;"
+            >
+              <input type="hidden" name="ctx" value={ctx ?? ""} />
+              <input type="hidden" name="status" value={NEXT_STATUS[task.status] ?? task.status} />
+              <button type="submit" class="board-task-btn">
+                Move to {STATUS_LABELS[NEXT_STATUS[task.status]!]}
+              </button>
+            </form>
+            <a
+              href={`/app/tasks/${task.id}/comment${ctxQuery}`}
+              class="board-task-btn board-task-btn--ghost"
+            >
+              Comment
+            </a>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default full card (used on My Tasks page and elsewhere)
   return (
     <div class="card" style="padding: 0;">
       <a

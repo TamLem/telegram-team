@@ -1,6 +1,6 @@
 import type { FC } from "hono/jsx";
 import type { TaskResponse } from "../../services/apiClient.js";
-import { StatusColumn } from "../components/StatusColumn.js";
+import { BoardSection } from "../components/BoardSection.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
 
@@ -21,7 +21,6 @@ export const BoardPage: FC<{
   const displayColumns = filterStatus
     ? columns.filter((col) => col.status === filterStatus)
     : columns;
-
   const totalTasks = columns.reduce((sum, col) => sum + col.count, 0);
 
   return (
@@ -29,16 +28,18 @@ export const BoardPage: FC<{
       <MiniAppNav ctx={ctx} teamId={teamId} current="board" />
 
       <div class="header">
-        <h1>
-          {filterStatus 
-            ? `${filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)} Tasks`
-            : "Task Board"}
-        </h1>
-        {filterStatus && (
-          <a href={`/app/board/${teamId}${ctxQuery}`} style="font-size: 14px; color: var(--tg-theme-link-color, #3390ec);">
-            Show all columns
-          </a>
-        )}
+        <div style="display: flex; justify-content: space-between; align-items: baseline;">
+          <h1>
+            {filterStatus
+              ? `${filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)} Tasks`
+              : "Task Board"}
+          </h1>
+          {filterStatus && (
+            <a href={`/app/board/${teamId}${ctxQuery}`} class="board-filter-link">
+              Show all
+            </a>
+          )}
+        </div>
       </div>
 
       {displayColumns.length === 0 && totalTasks === 0 ? (
@@ -58,9 +59,9 @@ export const BoardPage: FC<{
           description="No tasks match this filter."
         />
       ) : (
-        <div class="columns">
+        <div class="board-stacks">
           {displayColumns.map((col) => (
-            <StatusColumn
+            <BoardSection
               status={col.status}
               label={col.label}
               tasks={col.tasks}
