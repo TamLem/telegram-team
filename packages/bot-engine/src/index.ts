@@ -25,6 +25,8 @@ export type {
   ReplyKeyboardMarkup,
   KeyboardButton,
   BotCommand,
+  MenuButton,
+  SetChatMenuButtonParams,
 } from "./types.js";
 export type { Middleware } from "./middleware.js";
 export type { CommandHandler } from "./router.js";

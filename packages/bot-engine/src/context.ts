@@ -7,6 +7,7 @@ import type {
   SendMessageOptions,
   EditMessageTextOptions,
   AnswerCallbackQueryOptions,
+  SetChatMenuButtonParams,
 } from "./types.js";
 import type { Bot } from "./bot.js";
 
@@ -92,6 +93,10 @@ export class BotContext {
       throw new Error("Cannot answer: no callback query context");
     }
     return this.bot.api.answerCallbackQuery(callbackQueryId, text, options);
+  }
+
+  async setChatMenuButton(params: SetChatMenuButtonParams): Promise<true> {
+    return this.bot.api.setChatMenuButton(params);
   }
 
   setState<T>(key: string, value: T): void {

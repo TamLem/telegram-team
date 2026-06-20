@@ -134,6 +134,16 @@ export interface DeleteWebhookParams {
   drop_pending_updates?: boolean;
 }
 
+export type MenuButton =
+  | { type: "default" }
+  | { type: "commands" }
+  | { type: "web_app"; text: string; web_app: { url: string } };
+
+export interface SetChatMenuButtonParams {
+  chat_id?: number;
+  menu_button?: MenuButton;
+}
+
 export interface TelegramResponse<T> {
   ok: boolean;
   result: T;

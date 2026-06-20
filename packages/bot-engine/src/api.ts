@@ -7,6 +7,7 @@ import type {
   AnswerCallbackQueryOptions,
   GetUpdatesParams,
   DeleteWebhookParams,
+  SetChatMenuButtonParams,
   InlineKeyboardMarkup,
   BotCommand,
 } from "./types.js";
@@ -190,6 +191,13 @@ export class TelegramApi {
 
   async setMyCommands(commands: BotCommand[]): Promise<true> {
     return this.request<true>("setMyCommands", { commands });
+  }
+
+  async setChatMenuButton(params: SetChatMenuButtonParams): Promise<true> {
+    const body: Record<string, unknown> = {};
+    if (params.chat_id !== undefined) body.chat_id = params.chat_id;
+    if (params.menu_button !== undefined) body.menu_button = params.menu_button;
+    return this.request<true>("setChatMenuButton", body);
   }
 
   async deleteWebhook(params?: DeleteWebhookParams): Promise<true> {
