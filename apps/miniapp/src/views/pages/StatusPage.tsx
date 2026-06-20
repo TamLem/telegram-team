@@ -1,5 +1,6 @@
 import type { FC } from "hono/jsx";
 import { Button } from "../components/Button.js";
+import { MiniAppNav } from "../components/MiniAppNav.js";
 import type { TaskResponse } from "../../services/apiClient.js";
 
 const STATUS_OPTIONS = [
@@ -18,6 +19,8 @@ export const StatusPage: FC<{
 
   return (
     <div>
+      <MiniAppNav ctx={ctx} teamId={task.teamId} />
+
       <a href={`/app/tasks/${task.id}${ctxQuery}`} class="back-link">
         &larr; Back to Task
       </a>

@@ -152,6 +152,44 @@ body {
 .meta-row .badge { margin: 0; }
 
 .task-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+
+.miniapp-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 12px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--tg-theme-hint-color, rgba(0,0,0,0.08));
+}
+.miniapp-nav-links {
+  display: flex;
+  gap: 4px;
+}
+.miniapp-nav-link {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--tg-theme-hint-color, #64748b);
+  transition: background 0.15s, color 0.15s;
+}
+.miniapp-nav-link:hover {
+  background: var(--tg-theme-secondary-bg-color, rgba(0,0,0,0.06));
+}
+.miniapp-nav-link--active {
+  color: var(--tg-theme-button-color, #3390ec);
+  background: rgba(51, 144, 236, 0.1);
+}
+.miniapp-nav-cta {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  background: var(--tg-theme-button-color, #3390ec);
+  color: var(--tg-theme-button-text-color, #fff);
+}
 </style>
 `;
 

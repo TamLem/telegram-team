@@ -4,28 +4,24 @@ import { helpCommand } from "./commands/help.js";
 import { newTaskCommand } from "./commands/newtask.js";
 import { myTasksCommand } from "./commands/mytasks.js";
 import { boardCommand } from "./commands/board.js";
+import { blockedCommand } from "./commands/blocked.js";
 import { teamCommand } from "./commands/team.js";
 import { membersCommand } from "./commands/members.js";
 import { inviteCommand } from "./commands/invite.js";
-import { blockedCommand } from "./commands/blocked.js";
 import { taskCallback } from "./callbacks/task.js";
 import { onboardingCallback } from "./callbacks/onboarding.js";
+import { menuMessageHandler } from "./menu.js";
 
 export const BOT_COMMANDS: BotCommand[] = [
-  { command: "start", description: "Sign in and view your teams" },
-  { command: "help", description: "Show help and quick actions" },
-  { command: "newtask", description: "Create a task" },
-  { command: "mytasks", description: "View your assigned tasks" },
-  { command: "board", description: "Open the team task board" },
-  { command: "blocked", description: "View blocked tasks" },
-  { command: "team", description: "Open your team workspace" },
-  { command: "members", description: "View team members" },
-  { command: "invite", description: "Get your team invite code" },
+  { command: "start", description: "Sign in and show the menu" },
+  { command: "help", description: "Show help and menu" },
 ];
 
 export function registerBotInteractions(bot: Bot): void {
   bot.command("/start", startCommand);
   bot.command("/help", helpCommand);
+
+  // Registered for /command text fallback, but not shown in menu
   bot.command("/newtask", newTaskCommand);
   bot.command("/mytasks", myTasksCommand);
   bot.command("/board", boardCommand);
@@ -33,6 +29,9 @@ export function registerBotInteractions(bot: Bot): void {
   bot.command("/team", teamCommand);
   bot.command("/members", membersCommand);
   bot.command("/invite", inviteCommand);
+
+  // Menu keyboard button handler
+  bot.message(menuMessageHandler);
 
   bot.callback(/^onboard:/, onboardingCallback);
   bot.callback(/^task:/, taskCallback);

@@ -1,5 +1,6 @@
 import type { FC } from "hono/jsx";
 import type { JoinRequestResponse } from "../../services/apiClient.js";
+import { MiniAppNav } from "../components/MiniAppNav.js";
 
 export const JoinRequestsPage: FC<{
   teamId: string;
@@ -14,6 +15,8 @@ export const JoinRequestsPage: FC<{
 
   return (
     <div>
+      <MiniAppNav ctx={ctx} teamId={teamId} current="team" />
+
       <a href={`/app/team${ctxQuery}`} class="back-link">
         &larr; Back to Team
       </a>

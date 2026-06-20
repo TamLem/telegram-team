@@ -1,5 +1,6 @@
 import type { FC } from "hono/jsx";
 import type { TaskResponse } from "../../services/apiClient.js";
+import { MiniAppNav } from "../components/MiniAppNav.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -44,10 +45,12 @@ export const TaskDetailPage: FC<{
   ctx?: string;
 }> = ({ task, comments, events, ctx }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const teamId = task?.teamId;
 
   if (!task) {
     return (
       <div>
+        <MiniAppNav ctx={ctx} teamId={teamId} />
         <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
           &larr; Back
         </a>
@@ -62,6 +65,8 @@ export const TaskDetailPage: FC<{
 
   return (
     <div>
+      <MiniAppNav ctx={ctx} teamId={teamId} />
+
       <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
         &larr; Back to My Tasks
       </a>

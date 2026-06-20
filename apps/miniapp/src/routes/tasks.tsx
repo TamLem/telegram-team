@@ -43,7 +43,7 @@ tasksRoutes.get("/tasks/mine", async (c) => {
 
   const tasks = await getMyTasks(apiUser.id, ctx.teamId);
 
-  return c.render(<MyTasksPage tasks={tasks} username={tgUser.first_name} ctx={c.req.query("ctx")} />);
+  return c.render(<MyTasksPage tasks={tasks} username={tgUser.first_name} ctx={c.req.query("ctx")} teamId={ctx.teamId} />);
 });
 
 tasksRoutes.get("/tasks/new", async (c) => {

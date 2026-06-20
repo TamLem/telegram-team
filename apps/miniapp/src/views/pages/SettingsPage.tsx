@@ -1,4 +1,5 @@
 import type { FC } from "hono/jsx";
+import { MiniAppNav } from "../components/MiniAppNav.js";
 
 export const SettingsPage: FC<{
   team: { id: string; name: string };
@@ -10,6 +11,8 @@ export const SettingsPage: FC<{
 
   return (
     <div>
+      <MiniAppNav ctx={ctx} teamId={team.id} current="team" />
+
       <a href={`/app/team${ctxQuery}`} class="back-link">
         &larr; Back to Team
       </a>
