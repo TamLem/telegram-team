@@ -307,21 +307,6 @@ body {
 const script = `
 window.Telegram?.WebApp?.ready();
 window.Telegram?.WebApp?.expand();
-
-(function(){
-  var tabs = document.querySelectorAll('.board-tab');
-  if (!tabs.length) return;
-  tabs.forEach(function(tab){
-    tab.addEventListener('click', function(){
-      var status = this.getAttribute('data-status');
-      tabs.forEach(function(t){ t.classList.remove('board-tab--active'); });
-      this.classList.add('board-tab--active');
-      document.querySelectorAll('.board-column-panel').forEach(function(p){ p.hidden = true; });
-      var panel = document.getElementById('col-' + status);
-      if (panel) panel.hidden = false;
-    });
-  });
-})();
 `;
 
 export const Layout: FC<{ children?: any }> = ({ children }) => {

@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
-import { MyTasksPage } from "../views/pages/MyTasksPage.js";
 import { TaskDetailPage } from "../views/pages/TaskDetailPage.js";
 import { NewTaskPage } from "../views/pages/NewTaskPage.js";
 import { EditTaskPage } from "../views/pages/EditTaskPage.js";
@@ -9,7 +8,6 @@ import { StatusPage } from "../views/pages/StatusPage.js";
 import { CommentPage } from "../views/pages/CommentPage.js";
 import { SuccessPage } from "../views/pages/SuccessPage.js";
 import {
-  getMyTasks,
   getTask,
   getTaskComments,
   getTaskEvents,
@@ -35,16 +33,6 @@ async function fetchMembers(teamId: string | undefined, userId: string): Promise
     return [];
   }
 }
-
-tasksRoutes.get("/tasks/mine", async (c) => {
-  const apiUser = c.get("apiUser");
-  const ctx = c.get("ctx");
-  const tgUser = c.get("telegramUser");
-
-  const tasks = await getMyTasks(apiUser.id, ctx.teamId);
-
-  return c.render(<MyTasksPage tasks={tasks} username={tgUser.first_name} ctx={c.req.query("ctx")} teamId={ctx.teamId} />);
-});
 
 tasksRoutes.get("/tasks/new", async (c) => {
   const apiUser = c.get("apiUser");

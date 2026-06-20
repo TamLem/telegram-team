@@ -51,7 +51,7 @@ export const TaskDetailPage: FC<{
     return (
       <div>
         <MiniAppNav ctx={ctx} teamId={teamId} />
-        <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
+        <a href={teamId ? `/app/board/${teamId}${ctxQuery}` : "#"} class="back-link">
           &larr; Back
         </a>
         <div class="empty-state">
@@ -67,8 +67,8 @@ export const TaskDetailPage: FC<{
     <div>
       <MiniAppNav ctx={ctx} teamId={teamId} />
 
-      <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
-        &larr; Back to My Tasks
+      <a href={`/app/board/${teamId}${ctxQuery}`} class="back-link">
+        &larr; Back to Board
       </a>
 
       <div class="card">

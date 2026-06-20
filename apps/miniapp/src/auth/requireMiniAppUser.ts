@@ -255,7 +255,7 @@ function actionToPath(ctx: MiniAppContext): string {
     case "view_board":
       return `/app/board/${ctx.teamId}`;
     case "view_my_tasks":
-      return "/app/tasks/mine";
+      return `/app/board/${ctx.teamId}?assignee=me`;
     case "onboard_create_team":
       return "/app/onboarding/create-team";
     case "onboard_join_team":
@@ -273,7 +273,7 @@ function actionToPath(ctx: MiniAppContext): string {
     case "view_blocked_tasks":
       return `/app/board/${ctx.teamId}?status=blocked`;
     default:
-      return "/app/tasks/mine";
+      return `/app/board/${ctx.teamId}?assignee=me`;
   }
 }
 

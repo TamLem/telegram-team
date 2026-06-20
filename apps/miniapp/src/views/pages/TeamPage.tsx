@@ -16,7 +16,7 @@ export const TeamPage: FC<{
     <div>
       <MiniAppNav ctx={ctx} teamId={team.id} current="team" />
 
-      <a href={`/app/tasks/mine${ctxQuery}`} class="back-link">
+      <a href={`/app/board/${team.id}${ctxQuery}`} class="back-link">
         &larr; Back
       </a>
 

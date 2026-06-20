@@ -7,7 +7,7 @@ export const MiniAppNav: FC<{
 }> = ({ ctx, teamId, current }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   const links: Array<{ label: string; href: string; id: string }> = [
-    { label: "Tasks", href: `/app/tasks/mine${ctxQuery}`, id: "tasks" },
+    { label: "Tasks", href: teamId ? `/app/board/${teamId}?assignee=me${ctxQuery ? "&" + ctx : ""}` : "#", id: "tasks" },
     { label: "Board", href: teamId ? `/app/board/${teamId}${ctxQuery}` : "#", id: "board" },
     { label: "Team", href: `/app/team${ctxQuery}`, id: "team" },
   ];
