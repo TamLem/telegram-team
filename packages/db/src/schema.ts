@@ -142,3 +142,20 @@ export const notifications = sqliteTable("notifications", {
     .default(sql`(datetime('now'))`),
   deliveredAt: text("delivered_at"),
 });
+
+export const teamEvents = sqliteTable("team_events", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id),
+  actorUserId: text("actor_user_id")
+    .notNull()
+    .references(() => users.id),
+  targetUserId: text("target_user_id").references(() => users.id),
+  eventType: text("event_type").notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});

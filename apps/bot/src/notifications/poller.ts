@@ -96,6 +96,24 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `${payload.actorName ?? "Someone"}: ${payload.commentBody ?? ""}`
       );
 
+    case "task_blocked":
+      return (
+        `<b>Task blocked</b>\n\n` +
+        `<b>${title}</b> is now blocked.`
+      );
+
+    case "task_completed":
+      return (
+        `<b>Task completed</b>\n\n` +
+        `<b>${title}</b> was marked done.`
+      );
+
+    case "member_removed":
+      return (
+        `<b>You were removed from a team</b>\n\n` +
+        `You are no longer a member of <b>${payload.taskTitle ?? "a team"}</b>.`
+      );
+
     case "join_requested":
       return (
         `<b>New join request</b>\n\n` +
@@ -134,6 +152,10 @@ function buildActionUrl(
       teamId: payload.teamId,
       returnChatId: telegramUserId,
     });
+  }
+
+  if (eventType === "member_removed") {
+    return null;
   }
 
   const teamId = payload.teamId;

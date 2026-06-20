@@ -8,8 +8,8 @@ import {
   createCommentSchema,
   paginationSchema,
 } from "@telegram-team/shared";
-import { users as usersTable } from "@telegram-team/db";
-import { eq } from "drizzle-orm";
+import { users as usersTable, taskEvents } from "@telegram-team/db";
+import { eq, desc } from "drizzle-orm";
 import { getDb } from "@telegram-team/db";
 import {
   createTask,
@@ -331,6 +331,50 @@ tasksRouter.get("/tasks/:taskId/events", async (c) => {
     return c.json({ error: "Access denied" }, 403);
   }
 
-  const events = await getTaskEvents(taskId);
-  return c.json({ events });
+  const db = getDb();
+  const rawEvents = await db
+    .select()
+    .from(taskEvents)
+    .where(eq(taskEvents.taskId, taskId))
+    .orderBy(desc(taskEvents.createdAt));
+
+  const eventsWithUsers = await Promise.all(
+    rawEvents.map(async (event) => {
+      const [actor] = await db
+        .select({ id: usersTable.id, firstName: usersTable.firstName, telegramUsername: usersTable.telegramUsername })
+        .from(usersTable)
+        .where(eq(usersTable.id, event.actorUserId))
+        .limit(1);
+
+      let assigneeOldName: string | null = null;
+      let assigneeNewName: string | null = null;
+      if (event.eventType === "assignee_changed") {
+        if (event.oldValue && event.oldValue !== "unassigned") {
+          const [oldUser] = await db
+            .select({ firstName: usersTable.firstName, telegramUsername: usersTable.telegramUsername })
+            .from(usersTable)
+            .where(eq(usersTable.id, event.oldValue))
+            .limit(1);
+          assigneeOldName = oldUser?.firstName ?? null;
+        }
+        if (event.newValue && event.newValue !== "unassigned") {
+          const [newUser] = await db
+            .select({ firstName: usersTable.firstName, telegramUsername: usersTable.telegramUsername })
+            .from(usersTable)
+            .where(eq(usersTable.id, event.newValue))
+            .limit(1);
+          assigneeNewName = newUser?.firstName ?? null;
+        }
+      }
+
+      return {
+        ...event,
+        actor: actor ? { firstName: actor.firstName, telegramUsername: actor.telegramUsername } : null,
+        assigneeOldName,
+        assigneeNewName,
+      };
+    })
+  );
+
+  return c.json({ events: eventsWithUsers });
 });

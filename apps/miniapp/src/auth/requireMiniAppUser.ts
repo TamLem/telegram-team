@@ -168,7 +168,7 @@ export function requireMiniAppContext(): MiddlewareHandler<{
     const ctx = verifySignedMiniAppContext(ctxToken);
     if (!ctx) {
       return c.html(
-        `<!doctype html><html><body><p>This action link is invalid or expired. Please open it again from Telegram.</p></body></html>`,
+        `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#1e293b);text-align:center}p{margin:12px 0;color:var(--tg-theme-hint-color,#64748b)}a{display:inline-block;margin-top:16px;padding:10px 24px;background:var(--tg-theme-button-color,#3390ec);color:var(--tg-theme-button-text-color,#fff);text-decoration:none;border-radius:8px;font-weight:600}</style><title>Link Expired</title></head><body><h2>Link Expired</h2><p>This action link is invalid or expired.<br/>Please open it again from Telegram.</p><a href="https://t.me/TaskManagerBot">Open Bot</a></body></html>`,
         403
       );
     }
@@ -181,7 +181,7 @@ export function requireMiniAppContext(): MiddlewareHandler<{
 
     if (sessionUser.id !== ctx.telegramUserId) {
       return c.html(
-        `<!doctype html><html><body><p>This action link belongs to another Telegram user.</p></body></html>`,
+        `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#1e293b);text-align:center}</style><title>Access Denied</title></head><body><h2>Access Denied</h2><p>This action link belongs to another Telegram user.</p></body></html>`,
         403
       );
     }

@@ -1,7 +1,9 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createTeamSchema, joinTeamSchema } from "@telegram-team/shared";
-import { TeamRole, MembershipStatus } from "@telegram-team/shared";
+import { TeamRole, MembershipStatus, TeamEventType } from "@telegram-team/shared";
+import { getDb, teamEvents, users as usersTable } from "@telegram-team/db";
+import { eq, desc } from "drizzle-orm";
 import {
   createTeam,
   getTeamById,
@@ -28,6 +30,7 @@ import {
 import { requireAdmin, isAdminOrOwner } from "../services/authorization.service.js";
 import { getUserById } from "../services/users.service.js";
 import { createNotification } from "../services/notification.service.js";
+import { recordTeamEvent } from "../services/events.service.js";
 import type { NotificationPayload } from "@telegram-team/shared";
 
 export const teamsRouter = new Hono();
@@ -162,6 +165,32 @@ teamsRouter.post("/teams/:teamId/members/:memberUserId/remove", async (c) => {
   }
 
   await removeTeamMember(teamId, memberUserId);
+
+  await recordTeamEvent({
+    teamId,
+    actorUserId: userId,
+    targetUserId: memberUserId,
+    eventType: TeamEventType.MEMBER_REMOVED,
+  });
+
+  const team = await getTeamById(teamId);
+  const removedUser = await getUserById(memberUserId);
+  if (removedUser) {
+    const payload: NotificationPayload = {
+      taskTitle: team?.name ?? "Unknown team",
+      teamId,
+      memberName: removedUser.firstName,
+    };
+    await createNotification({
+      taskId: null,
+      teamId,
+      recipientUserId: memberUserId,
+      actorUserId: userId,
+      eventType: "member_removed",
+      payload,
+    });
+  }
+
   return c.json({ success: true });
 });
 
@@ -203,6 +232,16 @@ teamsRouter.post("/teams/:teamId/members/:memberUserId/role", async (c) => {
   }
 
   const updated = await updateMemberRole(teamId, memberUserId, newRole);
+
+  await recordTeamEvent({
+    teamId,
+    actorUserId: userId,
+    targetUserId: memberUserId,
+    eventType: TeamEventType.MEMBER_ROLE_CHANGED,
+    oldValue: target.role,
+    newValue: newRole,
+  });
+
   return c.json({ member: updated });
 });
 
@@ -395,6 +434,19 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/approve", async (c) =>
       role: TeamRole.MEMBER,
     });
 
+    await recordTeamEvent({
+      teamId,
+      actorUserId: userId,
+      targetUserId: request.userId,
+      eventType: TeamEventType.JOIN_REQUEST_APPROVED,
+    });
+    await recordTeamEvent({
+      teamId,
+      actorUserId: userId,
+      targetUserId: request.userId,
+      eventType: TeamEventType.MEMBER_ADDED,
+    });
+
     const team = await getTeamById(teamId);
     const actorUser = await getUserById(userId);
     const payload: NotificationPayload = {
@@ -452,6 +504,13 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/reject", async (c) => 
       reviewerId: userId,
     });
 
+    await recordTeamEvent({
+      teamId,
+      actorUserId: userId,
+      targetUserId: request.userId,
+      eventType: TeamEventType.JOIN_REQUEST_REJECTED,
+    });
+
     const team = await getTeamById(teamId);
     const payload: NotificationPayload = {
       taskTitle: team?.name ?? "Unknown team",
@@ -476,4 +535,50 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/reject", async (c) => 
     const message = err instanceof Error ? err.message : "Failed to reject request";
     return c.json({ error: message }, 400);
   }
+});
+
+teamsRouter.get("/teams/:teamId/activity", async (c) => {
+  const { teamId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const member = await getTeamMember(teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  const db = getDb();
+  const rawEvents = await db
+    .select()
+    .from(teamEvents)
+    .where(eq(teamEvents.teamId, teamId))
+    .orderBy(desc(teamEvents.createdAt))
+    .limit(50);
+
+  const eventsWithUsers = await Promise.all(
+    rawEvents.map(async (event) => {
+      const [actor] = await db
+        .select({ firstName: usersTable.firstName, telegramUsername: usersTable.telegramUsername })
+        .from(usersTable)
+        .where(eq(usersTable.id, event.actorUserId))
+        .limit(1);
+      const target = event.targetUserId
+        ? (await db
+            .select({ firstName: usersTable.firstName, telegramUsername: usersTable.telegramUsername })
+            .from(usersTable)
+            .where(eq(usersTable.id, event.targetUserId))
+            .limit(1)
+          )[0] ?? null
+        : null;
+      return {
+        ...event,
+        actor: actor ? { firstName: actor.firstName, telegramUsername: actor.telegramUsername } : null,
+        targetUser: target ? { firstName: target.firstName, telegramUsername: target.telegramUsername } : null,
+      };
+    })
+  );
+
+  return c.json({ events: eventsWithUsers });
 });

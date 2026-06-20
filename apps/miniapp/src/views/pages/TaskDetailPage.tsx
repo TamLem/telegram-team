@@ -1,5 +1,5 @@
 import type { FC } from "hono/jsx";
-import type { TaskResponse } from "../../services/apiClient.js";
+import type { TaskResponse, EventResponse } from "../../services/apiClient.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -38,10 +38,47 @@ function formatDueDate(dateString: string | null): string {
   });
 }
 
+function actorDisplay(event: EventResponse): string {
+  return event.actor?.firstName ?? "Someone";
+}
+
+function formatEventText(event: EventResponse): string {
+  const who = actorDisplay(event);
+  switch (event.eventType) {
+    case "task_created":
+      return `${who} created this task.`;
+    case "assignee_changed":
+      if (event.assigneeNewName) {
+        return `${who} assigned this task to ${event.assigneeNewName}.`;
+      }
+      if (event.newValue && event.newValue !== "unassigned") {
+        return `${who} assigned this task.`;
+      }
+      return `${who} removed the assignee.`;
+    case "status_changed":
+      if (event.oldValue && event.newValue) {
+        return `${who} changed status from ${STATUS_LABELS[event.oldValue] ?? event.oldValue} to ${STATUS_LABELS[event.newValue] ?? event.newValue}.`;
+      }
+      return `${who} changed the task status.`;
+    case "priority_changed":
+      return `${who} changed priority from ${PRIORITY_LABELS[event.oldValue ?? ""] ?? event.oldValue} to ${PRIORITY_LABELS[event.newValue ?? ""] ?? event.newValue}.`;
+    case "due_date_changed":
+      return `${who} changed the due date.`;
+    case "comment_added":
+      return `${who} added a comment.`;
+    case "task_cancelled":
+      return `${who} cancelled this task.`;
+    case "task_completed":
+      return `${who} completed this task.`;
+    default:
+      return `${who} performed ${event.eventType.replace(/_/g, " ")}.`;
+  }
+}
+
 export const TaskDetailPage: FC<{
   task: TaskResponse | null;
   comments?: Array<{ id: string; body: string; userId: string; createdAt: string; user?: { firstName: string; telegramUsername: string | null } | null }>;
-  events?: Array<{ id: string; eventType: string; actorUserId: string; oldValue: string | null; newValue: string | null; createdAt: string }>;
+  events?: EventResponse[];
   ctx?: string;
 }> = ({ task, comments, events, ctx }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
@@ -159,13 +196,11 @@ export const TaskDetailPage: FC<{
             Activity
           </h3>
           {events.map((event) => (
-            <div style="font-size: 13px; padding: 4px 0; color: var(--tg-theme-hint-color, #64748b);">
-              {event.eventType.replace(/_/g, " ")}
-              {event.oldValue && event.newValue && (
-                <span>: {event.oldValue} → {event.newValue}</span>
-              )}
-              {" "}&middot;{" "}
-              <span style="font-size: 12px;">{formatDate(event.createdAt)}</span>
+            <div style="font-size: 13px; padding: 6px 0; color: var(--tg-theme-text-color, #1e293b); border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f1f5f9);">
+              <span>{formatEventText(event)}</span>
+              <span style="font-size: 11px; color: var(--tg-theme-hint-color, #94a3b8); margin-left: 8px;">
+                {formatDate(event.createdAt)}
+              </span>
             </div>
           ))}
         </div>

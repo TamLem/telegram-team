@@ -57,6 +57,22 @@ export interface EventResponse {
   oldValue: string | null;
   newValue: string | null;
   createdAt: string;
+  actor?: { firstName: string; telegramUsername: string | null } | null;
+  assigneeOldName?: string | null;
+  assigneeNewName?: string | null;
+}
+
+export interface TeamEventResponse {
+  id: string;
+  teamId: string;
+  actorUserId: string;
+  targetUserId: string | null;
+  eventType: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+  actor?: { firstName: string; telegramUsername: string | null } | null;
+  targetUser?: { firstName: string; telegramUsername: string | null } | null;
 }
 
 export interface JoinRequestResponse {
@@ -413,4 +429,12 @@ export async function rejectJoinRequest(teamId: string, requestId: string, userI
     }
   );
   return res.request;
+}
+
+export async function getTeamActivity(teamId: string, userId: string): Promise<TeamEventResponse[]> {
+  const res = await apiFetch<{ events: TeamEventResponse[] }>(
+    `/api/teams/${teamId}/activity`,
+    { headers: { "X-User-Id": userId } }
+  );
+  return res.events;
 }

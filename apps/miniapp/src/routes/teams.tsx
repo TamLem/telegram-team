@@ -5,6 +5,7 @@ import { MembersPage } from "../views/pages/MembersPage.js";
 import { InvitePage } from "../views/pages/InvitePage.js";
 import { JoinRequestsPage } from "../views/pages/JoinRequestsPage.js";
 import { SettingsPage } from "../views/pages/SettingsPage.js";
+import { TeamActivityPage } from "../views/pages/TeamActivityPage.js";
 import {
   getTeam,
   updateTeam,
@@ -15,6 +16,7 @@ import {
   getJoinRequests,
   approveJoinRequest,
   rejectJoinRequest,
+  getTeamActivity,
 } from "../services/apiClient.js";
 import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
@@ -361,6 +363,23 @@ teamRoutes.post("/team/settings", async (c) => {
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Failed to update";
     return c.render(<SettingsPage team={{ id: teamId, name: body.name ?? "" }} ctx={c.req.query("ctx")} error={errorMsg} />);
+  }
+});
+
+teamRoutes.get("/team/activity", async (c) => {
+  const teamId = await resolveTeamId(c);
+  if (!teamId) {
+    return c.render(<TeamActivityPage teamId="" events={[]} ctx={c.req.query("ctx")} error="No team found." />);
+  }
+
+  const apiUser = c.get("apiUser");
+
+  try {
+    const events = await getTeamActivity(teamId, apiUser.id);
+    return c.render(<TeamActivityPage teamId={teamId} events={events} ctx={c.req.query("ctx")} />);
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "Failed to load activity";
+    return c.render(<TeamActivityPage teamId={teamId} events={[]} ctx={c.req.query("ctx")} error={errorMsg} />);
   }
 });
 

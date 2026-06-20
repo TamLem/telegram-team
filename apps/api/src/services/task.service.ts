@@ -4,6 +4,7 @@ import { eq, desc, and, inArray, lt, isNull } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
 import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
 import { createNotification } from "./notification.service.js";
+import { recordTaskEvent } from "./events.service.js";
 
 async function getUserName(userId: string): Promise<string> {
   const db = getDb();
@@ -420,12 +421,18 @@ export async function updateTask(
       teamId: existing.teamId,
     };
 
+    const eventType = input.status === TaskStatus.BLOCKED
+      ? "task_blocked"
+      : input.status === TaskStatus.DONE
+        ? "task_completed"
+        : "task_status_changed";
+
     await createNotification({
       taskId: id,
       teamId: existing.teamId,
       recipientUserId: actorUserId,
       actorUserId,
-      eventType: "task_status_changed",
+      eventType,
       payload,
     });
 
@@ -435,7 +442,7 @@ export async function updateTask(
         teamId: existing.teamId,
         recipientUserId: existing.assignedToUserId,
         actorUserId,
-        eventType: "task_status_changed",
+        eventType,
         payload,
       });
     }
@@ -569,25 +576,4 @@ export async function getTaskEvents(taskId: string): Promise<TaskEvent[]> {
     .from(taskEvents)
     .where(eq(taskEvents.taskId, taskId))
     .orderBy(desc(taskEvents.createdAt));
-}
-
-async function recordTaskEvent(input: {
-  taskId: string;
-  teamId: string;
-  actorUserId: string;
-  eventType: string;
-  oldValue?: string | null;
-  newValue?: string | null;
-}): Promise<void> {
-  const db = getDb();
-  await db.insert(taskEvents).values({
-    id: generateId(),
-    taskId: input.taskId,
-    teamId: input.teamId,
-    actorUserId: input.actorUserId,
-    eventType: input.eventType,
-    oldValue: input.oldValue ?? null,
-    newValue: input.newValue ?? null,
-    createdAt: new Date().toISOString(),
-  });
 }

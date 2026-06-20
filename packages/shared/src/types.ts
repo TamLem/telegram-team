@@ -74,6 +74,17 @@ export interface TaskEvent {
   createdAt: string;
 }
 
+export interface TeamEvent {
+  id: string;
+  teamId: string;
+  actorUserId: string;
+  targetUserId: string | null;
+  eventType: string;
+  oldValue: string | null;
+  newValue: string | null;
+  createdAt: string;
+}
+
 export interface Notification {
   id: string;
   taskId: string | null;

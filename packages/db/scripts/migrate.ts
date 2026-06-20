@@ -63,6 +63,17 @@ db.exec(`
     data TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS team_events (
+    id TEXT PRIMARY KEY,
+    team_id TEXT NOT NULL REFERENCES teams(id),
+    actor_user_id TEXT NOT NULL REFERENCES users(id),
+    target_user_id TEXT REFERENCES users(id),
+    event_type TEXT NOT NULL,
+    old_value TEXT,
+    new_value TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 console.log(`[db] Database initialized at ${dbPath}`);

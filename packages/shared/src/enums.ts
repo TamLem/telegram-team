@@ -41,3 +41,11 @@ export enum TaskEventType {
   TASK_CANCELLED = "task_cancelled",
   TASK_COMPLETED = "task_completed",
 }
+
+export enum TeamEventType {
+  JOIN_REQUEST_APPROVED = "join_request_approved",
+  JOIN_REQUEST_REJECTED = "join_request_rejected",
+  MEMBER_ADDED = "member_added",
+  MEMBER_REMOVED = "member_removed",
+  MEMBER_ROLE_CHANGED = "member_role_changed",
+}

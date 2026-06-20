@@ -116,6 +116,17 @@ CREATE TABLE IF NOT EXISTS notifications (
 CREATE INDEX IF NOT EXISTS idx_notifications_undelivered
   ON notifications(delivered_at)
   WHERE delivered_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS team_events (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  actor_user_id TEXT NOT NULL REFERENCES users(id),
+  target_user_id TEXT REFERENCES users(id),
+  event_type TEXT NOT NULL,
+  old_value TEXT,
+  new_value TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 function migrateDb(sqlite: Database.Database): void {
