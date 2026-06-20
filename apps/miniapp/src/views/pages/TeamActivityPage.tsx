@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { TeamEventResponse } from "../../services/apiClient.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -67,11 +68,7 @@ export const TeamActivityPage: FC<{
       )}
 
       {events.length === 0 && !error ? (
-        <div class="empty-state">
-          <div class="empty-state-icon">📋</div>
-          <h2>No Activity Yet</h2>
-          <p>Team events will appear here as members join, leave, or change roles.</p>
-        </div>
+        <EmptyState icon="📋" title="No Activity Yet" description="Team events will appear here as members join, leave, or change roles." />
       ) : (
         <div class="card">
           {events.map((event) => (

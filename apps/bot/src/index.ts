@@ -12,6 +12,17 @@ import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
 import { NotificationPoller } from "./notifications/poller.js";
 import { logError } from "./logger.js";
 
+function validateEnv(): void {
+  const required = ["BOT_TOKEN", "API_BASE_URL", "MINIAPP_BASE_URL", "MINIAPP_CONTEXT_SECRET", "INTERNAL_API_KEY"];
+  const missing = required.filter((k) => !getEnvOptional(k));
+  if (missing.length > 0) {
+    console.error(`[bot] FATAL: missing required env vars: ${missing.join(", ")}`);
+    process.exit(1);
+  }
+}
+
+validateEnv();
+
 const botToken = getEnv("BOT_TOKEN");
 const updateMode = getEnv("BOT_UPDATE_MODE", "polling");
 

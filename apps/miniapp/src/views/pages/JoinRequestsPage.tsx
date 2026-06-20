@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { JoinRequestResponse } from "../../services/apiClient.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 export const JoinRequestsPage: FC<{
   teamId: string;
@@ -78,10 +79,9 @@ export const JoinRequestsPage: FC<{
       ))}
 
       {requests.length === 0 && (
-        <div class="empty-state">
-          <h2>No pending requests</h2>
-          <p>New join requests will appear here.</p>
-        </div>
+        <EmptyState icon="📩" title="No pending requests" description="New join requests will appear here.">
+          <a href={`/app/team/invite${ctxQuery}`} class="btn">Invite Members</a>
+        </EmptyState>
       )}
     </div>
   );

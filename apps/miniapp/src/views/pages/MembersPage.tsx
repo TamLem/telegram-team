@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { TeamMemberResponse } from "../../services/apiClient.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 export const MembersPage: FC<{
   teamId: string;
@@ -105,10 +106,11 @@ export const MembersPage: FC<{
       })}
 
       {members.length === 0 && (
-        <div class="empty-state">
-          <h2>No members</h2>
-          <p>Share your invite code to add members.</p>
-        </div>
+        <EmptyState icon="👤" title="No members" description="Share your invite code to add members.">
+          {isAdmin && (
+            <a href={`/app/team/invite${ctxQuery}`} class="btn">Invite Members</a>
+          )}
+        </EmptyState>
       )}
     </div>
   );

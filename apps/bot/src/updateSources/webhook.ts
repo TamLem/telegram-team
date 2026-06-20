@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { timingSafeEqual } from "node:crypto";
 import type { Bot } from "@telegram-team/bot-engine";
 import type { TelegramUpdate } from "@telegram-team/bot-engine";
 import { logError } from "../logger.js";
@@ -13,10 +14,23 @@ export function createWebhookApp(bot: Bot, config: WebhookConfig = {}): Hono {
 
   const app = new Hono();
 
+  app.get("/health", (c) => {
+    return c.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/ready", (c) => {
+    return c.json({ status: "ready", timestamp: new Date().toISOString() });
+  });
+
   app.post(path, async (c) => {
     if (secretToken) {
       const token = c.req.header("X-Telegram-Bot-Api-Secret-Token");
-      if (token !== secretToken) {
+      if (!token || token.length !== secretToken.length) {
+        return c.json({ error: "Unauthorized" }, 401);
+      }
+      const tokenBuf = Buffer.from(token);
+      const secretBuf = Buffer.from(secretToken);
+      if (tokenBuf.length !== secretBuf.length || !timingSafeEqual(tokenBuf, secretBuf)) {
         return c.json({ error: "Unauthorized" }, 401);
       }
     }

@@ -1,6 +1,7 @@
 import type { FC } from "hono/jsx";
 import type { TaskResponse, EventResponse } from "../../services/apiClient.js";
 import { MiniAppNav } from "../components/MiniAppNav.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To Do",
@@ -172,12 +173,12 @@ export const TaskDetailPage: FC<{
         </div>
       </div>
 
-      {comments && comments.length > 0 && (
-        <div class="card">
-          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
-            Comments ({comments.length})
-          </h3>
-          {comments.map((comment) => (
+      <div class="card">
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+          Comments ({comments?.length ?? 0})
+        </h3>
+        {comments && comments.length > 0 ? (
+          comments.map((comment) => (
             <div class="comment">
               <div class="comment-meta">
                 {comment.user?.firstName ?? comment.userId}
@@ -186,25 +187,29 @@ export const TaskDetailPage: FC<{
               </div>
               <div class="comment-body">{comment.body}</div>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <EmptyState icon="💬" title="No comments yet" description="Be the first to leave a comment." />
+        )}
+      </div>
 
-      {events && events.length > 0 && (
-        <div class="card">
-          <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
-            Activity
-          </h3>
-          {events.map((event) => (
+      <div class="card">
+        <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+          Activity
+        </h3>
+        {events && events.length > 0 ? (
+          events.map((event) => (
             <div style="font-size: 13px; padding: 6px 0; color: var(--tg-theme-text-color, #1e293b); border-bottom: 1px solid var(--tg-theme-secondary-bg-color, #f1f5f9);">
               <span>{formatEventText(event)}</span>
               <span style="font-size: 11px; color: var(--tg-theme-hint-color, #94a3b8); margin-left: 8px;">
                 {formatDate(event.createdAt)}
               </span>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        ) : (
+          <EmptyState icon="📜" title="No activity yet" description="Task events will appear here." />
+        )}
+      </div>
     </div>
   );
 };

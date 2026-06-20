@@ -10,6 +10,14 @@ import type { AppVariables } from "./auth/requireMiniAppUser.js";
 
 const app = new Hono<{ Variables: AppVariables }>();
 
+app.get("/health", (c) => {
+  return c.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
+app.get("/ready", (c) => {
+  return c.json({ status: "ready", timestamp: new Date().toISOString() });
+});
+
 app.get(
   "*",
   jsxRenderer(({ children }) => {

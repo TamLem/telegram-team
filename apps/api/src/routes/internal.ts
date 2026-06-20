@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { timingSafeEqual } from "node:crypto";
 import { getEnv } from "@telegram-team/config";
 import {
   getUndeliveredNotifications,
@@ -11,7 +12,10 @@ function checkInternalKey(c: any): boolean {
   const expected = getEnv("INTERNAL_API_KEY");
   const provided = c.req.header("X-Internal-API-Key");
   if (!expected || !provided) return false;
-  return expected === provided;
+  const expectedBuf = Buffer.from(expected);
+  const providedBuf = Buffer.from(provided);
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, providedBuf);
 }
 
 internalRouter.get("/internal/notifications", async (c) => {
