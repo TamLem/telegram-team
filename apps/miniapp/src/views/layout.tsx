@@ -174,6 +174,14 @@ body {
   color: #f59e0b;
   font-weight: 500;
 }
+.board-task-assignee {
+  font-size: 11px;
+  color: var(--tg-theme-hint-color, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+}
 .board-task-chevron {
   flex-shrink: 0;
   color: var(--tg-theme-hint-color, #94a3b8);
@@ -182,6 +190,18 @@ body {
   display: flex;
   gap: 6px;
   padding: 0 4px 10px 4px;
+}
+.board-task-select {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(0,0,0,0.12));
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  color: var(--tg-theme-text-color, #222);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
 }
 .board-task-btn {
   padding: 5px 10px;

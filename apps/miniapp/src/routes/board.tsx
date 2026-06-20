@@ -14,6 +14,7 @@ boardRoutes.get("/board/:teamId", async (c) => {
   const apiUser = c.get("apiUser");
   const filterStatus = c.req.query("status") ?? null;
   const filterAssignee = c.req.query("assignee") ?? null;
+  const filterPriority = c.req.query("priority") ?? null;
 
   const { columns } = await getBoard(teamId, apiUser.id);
 
@@ -28,6 +29,7 @@ boardRoutes.get("/board/:teamId", async (c) => {
       columns={columns}
       filterStatus={filterStatus}
       filterAssignee={filterAssignee}
+      filterPriority={filterPriority}
       members={members}
       currentUserId={apiUser.id}
       ctx={c.req.query("ctx")}
