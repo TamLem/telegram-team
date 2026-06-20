@@ -295,7 +295,6 @@ body {
 const script = `
 window.Telegram?.WebApp?.ready();
 window.Telegram?.WebApp?.expand();
-try { window.Telegram?.WebApp?.enableClosingConfirmation(); } catch(e) {}
 `;
 
 export const Layout: FC<{ children?: any }> = ({ children }) => {
