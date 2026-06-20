@@ -232,8 +232,9 @@ export function setupAuthRoutes(app: Hono) {
     });
 
     const redirectPath = actionToPath(ctx);
+    const separator = redirectPath.includes("?") ? "&" : "?";
     return c.json({
-      redirect: `${redirectPath}?ctx=${body.ctx}`,
+      redirect: `${redirectPath}${separator}ctx=${body.ctx}`,
     });
   });
 }
