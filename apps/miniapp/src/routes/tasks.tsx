@@ -299,7 +299,16 @@ tasksRoutes.post("/tasks/:id/comment", async (c) => {
 tasksRoutes.post("/tasks/:id/delete", async (c) => {
   const { id } = c.req.param();
   const { apiUser } = c.var;
+  const ctxQuery = c.req.param("ctx") ?? "";
 
+  const task = await getTask(id, apiUser.id);
+  if (!task) {
+    return c.render(
+      <SuccessPage message="Task not found." redirectUrl="/app/board/team" />
+    );
+  }
+
+  const teamId = task.teamId;
   const res = await deleteTask(id, apiUser.id);
   if (!res.ok) {
     return c.render(
@@ -308,7 +317,7 @@ tasksRoutes.post("/tasks/:id/delete", async (c) => {
   }
 
   return c.render(
-    <SuccessPage message="Task deleted." redirectUrl="/app/board/team" />
+    <SuccessPage message="Task deleted." redirectUrl={`/app/board/${teamId}`} />
   );
 });
 
