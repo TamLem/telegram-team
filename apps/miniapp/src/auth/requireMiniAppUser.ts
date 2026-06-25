@@ -24,6 +24,14 @@ interface MiniAppSession {
   issuedAt: number;
 }
 
+export function shouldBootstrapMiniAppSession(
+  sessionTelegramUserId: number | undefined,
+  contextTelegramUserId: number
+): boolean {
+  return sessionTelegramUserId === undefined ||
+    sessionTelegramUserId !== contextTelegramUserId;
+}
+
 function sessionSecret(): string {
   return (
     getEnvOptional("MINIAPP_CONTEXT_SECRET") ??
@@ -175,15 +183,11 @@ export function requireMiniAppContext(): MiddlewareHandler<{
 
     const sessionUser = readMiniAppSessionCookie(getCookie(c, SESSION_COOKIE));
 
-    if (!sessionUser) {
+    if (
+      !sessionUser ||
+      shouldBootstrapMiniAppSession(sessionUser.id, ctx.telegramUserId)
+    ) {
       return renderBootstrapPage(ctxToken);
-    }
-
-    if (sessionUser.id !== ctx.telegramUserId) {
-      return c.html(
-        `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#1e293b);text-align:center}</style><title>Access Denied</title></head><body><h2>Access Denied</h2><p>This action link belongs to another Telegram user.</p></body></html>`,
-        403
-      );
     }
 
     try {

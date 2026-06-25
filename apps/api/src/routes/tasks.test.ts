@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { tmpdir } from "node:os";
 import { Hono } from "hono";
-import { createDb } from "@telegram-team/db";
+import { createDb, getDb, notifications } from "@telegram-team/db";
+import { eq } from "drizzle-orm";
 import { tasksRouter } from "./tasks.js";
 import { teamsRouter } from "./teams.js";
 import { usersRouter } from "./users.js";
@@ -135,6 +136,16 @@ test("POST /api/teams creates a team and adds creator as owner", async () => {
   assert.ok(body.team.inviteCode);
   assert.ok(body.team.id);
 
+  const creationNotifications = await getDb()
+    .select()
+    .from(notifications)
+    .where(eq(notifications.recipientUserId, aliceId));
+  assert.ok(
+    creationNotifications.some((notification) =>
+      notification.eventType === "team_created"
+    )
+  );
+
   const membersRes = await app.request(`/api/teams/${body.team.id}/members`, {
     headers: { "X-User-Id": aliceId },
   });
@@ -166,6 +177,16 @@ test("POST /api/teams/join creates a pending join request", async () => {
   const joinBody = await joinRes.json() as any;
   assert.equal(joinBody.request.status, "pending");
   assert.equal(joinBody.request.userId, bobId);
+
+  const requesterNotifications = await getDb()
+    .select()
+    .from(notifications)
+    .where(eq(notifications.recipientUserId, bobId));
+  assert.ok(
+    requesterNotifications.some((notification) =>
+      notification.eventType === "join_request_submitted"
+    )
+  );
 });
 
 test("POST /api/teams/join rejects invalid invite code", async () => {

@@ -1,29 +1,65 @@
 import type { FC } from "hono/jsx";
 
 export const SuccessPage: FC<{
+  title?: string;
   message: string;
+  detail?: string;
   redirectUrl?: string;
   autoClose?: boolean;
-}> = ({ message, redirectUrl, autoClose = true }) => {
+  closeLabel?: string;
+}> = ({
+  title = "Done",
+  message,
+  detail,
+  redirectUrl,
+  autoClose = true,
+  closeLabel = "Close",
+}) => {
   const script = redirectUrl
     ? `setTimeout(function(){ window.location.href = ${JSON.stringify(redirectUrl)}; }, 1000);`
     : autoClose
-      ? `setTimeout(function(){ try { window.Telegram?.WebApp?.close(); } catch(e){} }, 1500);`
+      ? `
+        (function () {
+          var app = window.Telegram && window.Telegram.WebApp;
+          var close = function () { try { app && app.close(); } catch (e) {} };
+          if (app && app.MainButton) {
+            app.MainButton.setText(${JSON.stringify(closeLabel)});
+            app.MainButton.show();
+            app.MainButton.onClick(close);
+          }
+          setTimeout(close, 2200);
+        })();
+      `
       : "";
 
   return (
-    <div class="empty-state" style="padding: 60px 20px;">
-      <div class="empty-state-icon" style="font-size: 48px;">✅</div>
-      <h2 style="font-size: 20px; margin-bottom: 8px;">Success</h2>
-      <p style="font-size: 15px; margin-bottom: 16px;">{message}</p>
+    <main class="confirmation" aria-live="polite">
+      <div class="confirmation-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img">
+          <path d="m7.5 12.5 3 3 6-7" />
+        </svg>
+      </div>
+      <p class="confirmation-eyebrow">TaskPilot</p>
+      <h1>{title}</h1>
+      <p class="confirmation-message">{message}</p>
+      {detail && <p class="confirmation-detail">{detail}</p>}
       {redirectUrl && (
-        <a href={redirectUrl} class="btn" style="margin-top: 12px;">
+        <a href={redirectUrl} class="btn confirmation-action">
           View Task
         </a>
+      )}
+      {!redirectUrl && (
+        <button
+          type="button"
+          class="btn confirmation-action"
+          onclick="window.Telegram?.WebApp?.close()"
+        >
+          {closeLabel}
+        </button>
       )}
       {script && (
         <script dangerouslySetInnerHTML={{ __html: script }} />
       )}
-    </div>
+    </main>
   );
 };

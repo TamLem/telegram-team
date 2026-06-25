@@ -2,6 +2,7 @@ import type { Bot } from "@telegram-team/bot-engine";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { miniAppContextUrl } from "../telegram/webApp.js";
 import { logError } from "../logger.js";
+import { escapeHtml } from "../telegram/html.js";
 
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
@@ -34,6 +35,7 @@ interface NotificationPayload {
   dueAt?: string | null;
   teamName?: string;
   memberName?: string;
+  inviteCode?: string;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -137,6 +139,20 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `You are no longer a member of <b>${payload.taskTitle ?? "a team"}</b>.`
       );
 
+    case "team_created":
+      return (
+        `<b>Team ready</b>\n\n` +
+        `<b>${escapeHtml(payload.teamName ?? "Your team")}</b> has been created.\n` +
+        `Invite code: <code>${escapeHtml(payload.inviteCode ?? "Unavailable")}</code>\n\n` +
+        `Your TaskPilot menu is ready.`
+      );
+
+    case "join_request_submitted":
+      return (
+        `<b>Join request sent</b>\n\n` +
+        `Your request to join <b>${escapeHtml(payload.teamName ?? "the team")}</b> is waiting for admin approval.`
+      );
+
     case "join_requested":
       return (
         `<b>New join request</b>\n\n` +
@@ -167,10 +183,24 @@ function buildActionUrl(
   telegramUserId: number,
   payload: NotificationPayload
 ): string | null {
-  if (eventType.startsWith("join_request")) {
+  if (eventType === "join_requested") {
     if (!payload.teamId) return null;
     return miniAppContextUrl(MINIAPP_BASE_URL, {
       action: "review_join_requests",
+      telegramUserId,
+      teamId: payload.teamId,
+      returnChatId: telegramUserId,
+    });
+  }
+
+  if (eventType === "join_request_submitted") {
+    return null;
+  }
+
+  if (eventType === "team_created") {
+    if (!payload.teamId) return null;
+    return miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "view_team",
       telegramUserId,
       teamId: payload.teamId,
       returnChatId: telegramUserId,
@@ -235,7 +265,9 @@ async function processNotification(
   );
 
   const boardUrl =
-    !notification.eventType.startsWith("join_request") && payload.teamId
+    !notification.eventType.startsWith("join_request") &&
+    notification.eventType !== "team_created" &&
+    payload.teamId
       ? miniAppContextUrl(MINIAPP_BASE_URL, {
           action: "view_board",
           telegramUserId: notification.recipientTelegramUserId,
@@ -250,6 +282,8 @@ async function processNotification(
       {
         text: notification.eventType.startsWith("join_request")
           ? "Review Request"
+          : notification.eventType === "team_created"
+            ? "Open Team"
           : "Open Details",
         web_app: { url: detailUrl },
       },
@@ -268,6 +302,31 @@ async function processNotification(
     ? { inline_keyboard: buttons }
     : undefined;
 
+  if (notification.eventType === "team_created" && payload.teamId) {
+    try {
+      const menuUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+        action: "view_my_tasks",
+        telegramUserId: notification.recipientTelegramUserId,
+        teamId: payload.teamId,
+        returnChatId: notification.recipientTelegramUserId,
+      });
+      await bot.api.setChatMenuButton({
+        chat_id: notification.recipientTelegramUserId,
+        menu_button: {
+          type: "web_app",
+          text: "Open Tasks",
+          web_app: { url: menuUrl },
+        },
+      });
+    } catch (err) {
+      logError(
+        `[notifications] failed to configure menu for user ${notification.recipientTelegramUserId}`,
+        err instanceof Error ? err : new Error(String(err)),
+        { notificationId: notification.id }
+      );
+    }
+  }
+
   try {
     await bot.api.sendMessage(
       notification.recipientTelegramUserId,
@@ -280,6 +339,7 @@ async function processNotification(
       err instanceof Error ? err : new Error(String(err)),
       { notificationId: notification.id }
     );
+    return;
   }
 
   await markDelivered(notification.id);

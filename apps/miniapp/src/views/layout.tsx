@@ -240,6 +240,80 @@ body {
 .empty-state h2 { font-size: 18px; margin-bottom: 4px; }
 .empty-state p { font-size: 14px; }
 
+.confirmation {
+  min-height: calc(100vh - 72px);
+  min-height: calc(100svh - 72px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 32px 12px;
+  animation: confirmation-enter 280ms ease-out both;
+}
+.confirmation-mark {
+  width: 68px;
+  height: 68px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+  border-radius: 50%;
+  color: var(--tg-theme-button-text-color, #fff);
+  background: var(--tg-theme-button-color, #3390ec);
+  box-shadow: 0 12px 30px rgba(51, 144, 236, 0.24);
+  animation: confirmation-mark 420ms 80ms cubic-bezier(.2,.8,.2,1) both;
+}
+.confirmation-mark svg {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.confirmation-eyebrow {
+  margin-bottom: 8px;
+  color: var(--tg-theme-button-color, #3390ec);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.confirmation h1 {
+  max-width: 360px;
+  margin-bottom: 10px;
+  font-size: 28px;
+  line-height: 1.15;
+}
+.confirmation-message {
+  max-width: 420px;
+  color: var(--tg-theme-text-color, #222);
+  font-size: 15px;
+}
+.confirmation-detail {
+  max-width: 420px;
+  margin-top: 8px;
+  color: var(--tg-theme-hint-color, #64748b);
+  font-size: 13px;
+}
+.confirmation-action {
+  min-width: 180px;
+  margin-top: 26px;
+}
+@keyframes confirmation-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes confirmation-mark {
+  from { opacity: 0; transform: scale(.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confirmation,
+  .confirmation-mark { animation: none; }
+}
+
 .header { margin-bottom: 20px; }
 .header h1 { font-size: 24px; font-weight: 700; }
 .back-link {

@@ -32,7 +32,10 @@ onboardingRoutes.post("/onboarding/create-team", async (c) => {
 
     return c.render(
       <SuccessPage
-        message={`Team "${team.name}" created! Invite code: ${team.inviteCode}`}
+        title="Team ready"
+        message={`${team.name} is set up. We sent the invite code and next steps to your Telegram chat.`}
+        detail={`Invite code: ${team.inviteCode}`}
+        closeLabel="Close TaskPilot"
         autoClose={true}
       />
     );
@@ -59,7 +62,10 @@ onboardingRoutes.post("/onboarding/join-team", async (c) => {
 
     return c.render(
       <SuccessPage
-        message="Join request sent! An admin must approve your request."
+        title="Request sent"
+        message="An admin will review your request. We sent a confirmation to your Telegram chat."
+        detail="You’ll receive another message when the request is approved or rejected."
+        closeLabel="Close TaskPilot"
         autoClose={true}
       />
     );

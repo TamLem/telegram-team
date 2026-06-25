@@ -57,6 +57,19 @@ teamsRouter.post("/teams", zValidator("json", createTeamSchema), async (c) => {
     role: TeamRole.OWNER,
   });
 
+  await createNotification({
+    taskId: null,
+    teamId: team.id,
+    recipientUserId: userId,
+    actorUserId: userId,
+    eventType: "team_created",
+    payload: {
+      teamId: team.id,
+      teamName: team.name,
+      inviteCode: team.inviteCode,
+    },
+  });
+
   return c.json({ team }, 201);
 });
 
@@ -373,6 +386,18 @@ teamsRouter.post("/teams/join", zValidator("json", joinTeamSchema), async (c) =>
         payload,
       });
     }
+
+    await createNotification({
+      taskId: null,
+      teamId: team.id,
+      recipientUserId: userId,
+      actorUserId: userId,
+      eventType: "join_request_submitted",
+      payload: {
+        teamId: team.id,
+        teamName: team.name,
+      },
+    });
 
     return c.json({ request }, 201);
   } catch (err) {
