@@ -4,7 +4,7 @@ export const OnboardingPage: FC<{ ctx?: string }> = () => {
   return (
     <div>
       <div class="header">
-        <h1>Welcome to TaskPilot</h1>
+        <h1>Welcome to TaskPi</h1>
       </div>
 
       <p style="margin-bottom: 24px; color: var(--tg-theme-hint-color, #64748b); font-size: 15px;">

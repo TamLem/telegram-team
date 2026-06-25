@@ -1,6 +1,6 @@
 # MVP Test Checklist
 
-Use this checklist to manually verify TaskPilot end-to-end before release.
+Use this checklist to manually verify TaskPi end-to-end before release.
 
 ---
 

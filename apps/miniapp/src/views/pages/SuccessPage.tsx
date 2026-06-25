@@ -56,7 +56,7 @@ export const SuccessPage: FC<{
           <path d="m7.5 12.5 3 3 6-7" />
         </svg>
       </div>
-      <p class="confirmation-eyebrow">TaskPilot</p>
+      <p class="confirmation-eyebrow">TaskPi</p>
       <h1>{title}</h1>
       <p class="confirmation-message">{message}</p>
       {detail && <p class="confirmation-detail">{detail}</p>}

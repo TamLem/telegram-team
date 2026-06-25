@@ -39,7 +39,7 @@ export async function startCommand(ctx: BotContext): Promise<void> {
     } catch {}
 
     await ctx.reply(
-      `Welcome to <b>TaskPilot</b>, ${firstName}!\n\n` +
+      `Welcome to <b>TaskPi</b>, ${firstName}!\n\n` +
         `To start, create a team or join an existing one.\n\n` +
         `Once you have a team, you'll get a quick-access menu.`,
       { reply_markup: keyboard }

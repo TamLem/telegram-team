@@ -3,7 +3,7 @@ import { MAIN_MENU_KEYBOARD } from "../menu.js";
 
 export async function helpCommand(ctx: BotContext): Promise<void> {
   await ctx.reply(
-    `<b>TaskPilot Help</b>\n\n` +
+    `<b>TaskPi Help</b>\n\n` +
       `Use the menu buttons below to navigate:\n` +
       `• 📋 My Tasks — view your assigned tasks\n` +
       `• 📊 Board — open the task board\n` +

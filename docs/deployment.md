@@ -1,4 +1,4 @@
-# TaskPilot — Deployment Guide
+# TaskPi — Deployment Guide
 
 ## Architecture
 
@@ -26,7 +26,7 @@ api:3001  ←── internal calls from bot and miniapp (Docker network, not pub
 
 - A VPS managed by [Coolify](https://coolify.io)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- A domain (e.g., `taskpilot.example.com`) pointed to your VPS
+- A domain (e.g., `taskpi.example.com`) pointed to your VPS
 
 ---
 
@@ -44,7 +44,7 @@ openssl rand -hex 32  # → BOT_WEBHOOK_SECRET
 ### 2. Create the Coolify service
 
 1. In Coolify, go to your project → **+ New** → **Docker Compose**
-2. **Source**: Git repository (point to your TaskPilot fork)
+2. **Source**: Git repository (point to your TaskPi fork)
 3. **Branch**: `main`
 4. **Compose File**: `docker-compose.yml` (default, already in repo root)
 
@@ -61,12 +61,12 @@ In Coolify's environment variables UI for this service, add:
 
 ```env
 # Domain (used by bot to register webhook and generate Mini App URLs)
-BOT_WEBHOOK_URL=https://taskpilot.example.com
-MINIAPP_BASE_URL=https://taskpilot.example.com
+BOT_WEBHOOK_URL=https://taskpi.example.com
+MINIAPP_BASE_URL=https://taskpi.example.com
 
 # Telegram
 BOT_TOKEN=12345:abcde...
-BOT_USERNAME=YourTaskPilotBot
+BOT_USERNAME=YourTaskPiBot
 
 # Internal secrets
 INTERNAL_API_KEY=<generated-hex>
@@ -91,7 +91,7 @@ Click **Deploy**. Coolify will:
 
 ```bash
 # Health checks (through the public domain)
-curl https://taskpilot.example.com/health
+curl https://taskpi.example.com/health
 # → {"status": "ok"}
 
 # Bot webhook should be registered automatically on startup.

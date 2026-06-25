@@ -1,4 +1,4 @@
-# TaskPilot — Local Development
+# TaskPi — Local Development
 
 ## Quick Start
 

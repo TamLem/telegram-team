@@ -1,6 +1,6 @@
 services:
   api:
-    image: taskpilot:latest
+    image: taskpi:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -24,7 +24,7 @@ services:
       - internal
 
   miniapp:
-    image: taskpilot:latest
+    image: taskpi:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -49,7 +49,7 @@ services:
       - internal
 
   bot:
-    image: taskpilot:latest
+    image: taskpi:latest
     build:
       context: .
       dockerfile: Dockerfile

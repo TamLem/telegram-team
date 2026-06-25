@@ -22,14 +22,14 @@ test("CommandRouter dispatches private chat commands", async () => {
 
 test("CommandRouter dispatches commands addressed to this bot", async () => {
   const router = new CommandRouter();
-  router.setBotUsername("taskpilot_bot");
+  router.setBotUsername("taskpi_bot");
   let called = false;
 
   router.add("/start", async () => {
     called = true;
   });
 
-  const handled = await router.handle(ctx("/start@TaskPilot_Bot"));
+  const handled = await router.handle(ctx("/start@TaskPi_Bot"));
 
   assert.equal(handled, true);
   assert.equal(called, true);
@@ -37,7 +37,7 @@ test("CommandRouter dispatches commands addressed to this bot", async () => {
 
 test("CommandRouter ignores commands addressed to another bot", async () => {
   const router = new CommandRouter();
-  router.setBotUsername("taskpilot_bot");
+  router.setBotUsername("taskpi_bot");
   let called = false;
 
   router.add("/start", async () => {
@@ -58,7 +58,7 @@ test("CommandRouter ignores addressed commands when bot username is unknown", as
     called = true;
   });
 
-  const handled = await router.handle(ctx("/start@TaskPilot_Bot"));
+  const handled = await router.handle(ctx("/start@TaskPi_Bot"));
 
   assert.equal(handled, false);
   assert.equal(called, false);

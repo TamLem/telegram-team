@@ -153,7 +153,7 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `<b>Team ready</b>\n\n` +
         `<b>${escapeHtml(payload.teamName ?? "Your team")}</b> has been created.\n` +
         `Invite code: <code>${escapeHtml(payload.inviteCode ?? "Unavailable")}</code>\n\n` +
-        `Your TaskPilot menu is ready.`
+        `Your TaskPi menu is ready.`
       );
 
     case "join_request_submitted":
