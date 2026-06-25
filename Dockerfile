@@ -46,6 +46,6 @@ RUN find /app/packages /app/apps -not -path '*/node_modules/*' \
     mkdir -p /app/data
 
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -qO- http://localhost:${PORT:-3000}/health || exit 1
+  CMD wget -qO- "http://localhost:${API_PORT:-${MINIAPP_PORT:-${BOT_PORT:-${PORT:-3000}}}}/health" || exit 1
 
 CMD ["node", "apps/api/dist/index.js"]
