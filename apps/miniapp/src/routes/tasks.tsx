@@ -5,7 +5,6 @@ import { NewTaskPage } from "../views/pages/NewTaskPage.js";
 import { EditTaskPage } from "../views/pages/EditTaskPage.js";
 import { AssignTaskPage } from "../views/pages/AssignTaskPage.js";
 import { StatusPage } from "../views/pages/StatusPage.js";
-import { CommentPage } from "../views/pages/CommentPage.js";
 import { SuccessPage } from "../views/pages/SuccessPage.js";
 import {
   getTask,
@@ -258,39 +257,38 @@ tasksRoutes.post("/tasks/:id/status", async (c) => {
   );
 });
 
-tasksRoutes.get("/tasks/:id/comment", async (c) => {
-  const { id } = c.req.param();
-  const apiUser = c.get("apiUser");
-
-  const task = await getTask(id, apiUser.id);
-  if (!task) {
-    return c.render(<TaskDetailPage task={null} ctx={c.req.query("ctx")} />);
-  }
-
-  return c.render(<CommentPage task={task} ctx={c.req.query("ctx")} />);
-});
-
 tasksRoutes.post("/tasks/:id/comment", async (c) => {
   const { id } = c.req.param();
   const apiUser = c.get("apiUser");
+  const ctxQuery = c.req.query("ctx") ?? "";
 
   const body = await c.req.parseBody<{ body: string }>();
 
   const task = await getTask(id, apiUser.id);
   if (!task) {
-    return c.render(<TaskDetailPage task={null} ctx={c.req.query("ctx")} />);
+    return c.render(<TaskDetailPage task={null} ctx={ctxQuery} />);
   }
 
   if (!body.body || body.body.trim().length === 0) {
-    return c.render(<CommentPage task={task} ctx={c.req.query("ctx")} error="Comment cannot be empty" />);
+    const comments = await getTaskComments(task.id, apiUser.id).catch(() => []);
+    const events = await getTaskEvents(task.id, apiUser.id).catch(() => []);
+    return c.render(
+      <TaskDetailPage
+        task={task}
+        comments={comments}
+        events={events}
+        ctx={ctxQuery}
+        commentError="Comment cannot be empty"
+      />
+    );
   }
 
   await addTaskComment(id, body.body.trim(), apiUser.id);
 
   return c.render(
     <SuccessPage
-      message="Comment added successfully."
-      redirectUrl={`/app/tasks/${id}?ctx=${c.req.query("ctx") ?? ""}`}
+      message="Comment added."
+      redirectUrl={`/app/tasks/${id}?ctx=${ctxQuery}`}
     />
   );
 });

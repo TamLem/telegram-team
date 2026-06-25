@@ -81,7 +81,8 @@ export const TaskDetailPage: FC<{
   comments?: Array<{ id: string; body: string; userId: string; createdAt: string; user?: { firstName: string; telegramUsername: string | null } | null }>;
   events?: EventResponse[];
   ctx?: string;
-}> = ({ task, comments, events, ctx }) => {
+  commentError?: string;
+}> = ({ task, comments, events, ctx, commentError }) => {
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   const teamId = task?.teamId;
 
@@ -159,16 +160,13 @@ export const TaskDetailPage: FC<{
         </h3>
         <div class="task-actions" style="flex-direction: column; gap: 8px;">
           <a href={`/app/tasks/${task.id}/edit${ctxQuery}`} class="btn btn-block btn-secondary">
-            ✏️ Edit Task
+            Edit Task
           </a>
           <a href={`/app/tasks/${task.id}/assign${ctxQuery}`} class="btn btn-block btn-secondary">
-            👤 Assign
+            Assign
           </a>
           <a href={`/app/tasks/${task.id}/status${ctxQuery}`} class="btn btn-block btn-secondary">
-            🔄 Change Status
-          </a>
-          <a href={`/app/tasks/${task.id}/comment${ctxQuery}`} class="btn btn-block btn-secondary">
-            💬 Add Comment
+            Change Status
           </a>
         </div>
       </div>
@@ -177,6 +175,21 @@ export const TaskDetailPage: FC<{
         <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
           Comments ({comments?.length ?? 0})
         </h3>
+
+        <form method="post" action={`/app/tasks/${task.id}/comment${ctxQuery}`} class="comment-form">
+          <input type="hidden" name="ctx" value={ctx ?? ""} />
+          {commentError && (
+            <p class="comment-error">{commentError}</p>
+          )}
+          <textarea
+            name="body"
+            placeholder="Write a comment..."
+          ></textarea>
+          <div class="comment-form-footer">
+            <button type="submit">Send</button>
+          </div>
+        </form>
+
         {comments && comments.length > 0 ? (
           comments.map((comment) => (
             <div class="comment">

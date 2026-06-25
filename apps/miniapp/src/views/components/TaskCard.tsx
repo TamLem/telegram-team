@@ -43,6 +43,12 @@ function formatDueDate(dateString: string | null): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function trimDescription(desc: string | null, maxLen = 80): string | null {
+  if (!desc) return null;
+  if (desc.length <= maxLen) return desc;
+  return desc.slice(0, maxLen).trimEnd() + "...";
+}
+
 export const TaskCard: FC<{
   task: TaskResponse;
   ctx?: string;
@@ -54,6 +60,7 @@ export const TaskCard: FC<{
   const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   const isBoard = variant === "board";
   const dueStr = formatDueDate(task.dueAt);
+  const trimmedDesc = trimDescription(task.description);
 
   if (isBoard) {
     return (
@@ -61,6 +68,9 @@ export const TaskCard: FC<{
         <a href={`/app/tasks/${task.id}${ctxQuery}`} class="board-task-main">
           <div class="board-task-body">
             <div class="board-task-title">{task.title}</div>
+            {trimmedDesc && (
+              <div class="board-task-desc">{trimmedDesc}</div>
+            )}
             <div class="board-task-meta">
               <span class={`badge badge-${task.priority}`} style="font-size: 10px; padding: 2px 6px;">
                 {PRIORITY_LABELS[task.priority] ?? task.priority}
@@ -71,39 +81,32 @@ export const TaskCard: FC<{
               </span>
             </div>
           </div>
-          <svg class="board-task-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
+          <form method="post" action={`/app/tasks/${task.id}/status${ctxQuery}`} onclick="event.stopPropagation()">
+            <input type="hidden" name="ctx" value={ctx ?? ""} />
+            <select
+              name="status"
+              class="board-task-select"
+              onchange="this.form.submit()"
+            >
+              {STATUS_OPTIONS.map((s) => (
+                <option value={s.value} selected={task.status === s.value}>{s.label}</option>
+              ))}
+            </select>
+          </form>
         </a>
-
-        {showActions && (
-          <div class="board-task-actions">
-            <form method="post" action={`/app/tasks/${task.id}/status${ctxQuery}`} style="flex:1">
-              <input type="hidden" name="ctx" value={ctx ?? ""} />
-              <select
-                name="status"
-                class="board-task-select"
-                onchange="this.form.submit()"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option value={s.value} selected={task.status === s.value}>{s.label}</option>
-                ))}
-              </select>
-            </form>
-            <a href={`/app/tasks/${task.id}/comment${ctxQuery}`} class="board-task-btn board-task-btn--ghost">
-              Comment
-            </a>
-          </div>
-        )}
       </div>
     );
   }
 
-  // Default full card (used elsewhere)
   return (
     <div class="card" style="padding:0">
       <a href={`/app/tasks/${task.id}${ctxQuery}`} style="text-decoration:none;color:inherit;display:block;padding:12px">
         <div class="card-title">{task.title}</div>
+        {trimmedDesc && (
+          <div style="font-size:13px;color:var(--tg-theme-hint-color,#64748b);margin:4px 0 0 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            {trimmedDesc}
+          </div>
+        )}
         <div class="meta-row">
           <span class={`badge badge-${task.status}`}>{STATUS_LABELS[task.status] ?? task.status}</span>
           <span class={`badge badge-${task.priority}`}>{PRIORITY_LABELS[task.priority] ?? task.priority}</span>
@@ -117,7 +120,6 @@ export const TaskCard: FC<{
             <input type="hidden" name="status" value={NEXT_STATUS[task.status] ?? task.status} />
             <button type="submit" class="btn btn-secondary" style="width:100%;font-size:11px;padding:4px 8px">Move to {STATUS_LABELS[NEXT_STATUS[task.status]!]}</button>
           </form>
-          <a href={`/app/tasks/${task.id}/comment${ctxQuery}`} class="btn btn-secondary" style="font-size:11px;padding:4px 8px">Comment</a>
         </div>
       )}
     </div>
