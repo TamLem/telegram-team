@@ -15,6 +15,7 @@ import {
   updateTaskStatus,
   assignTask,
   addTaskComment,
+  deleteTask,
   getTeamMembers,
   type TeamMemberResponse,
 } from "../services/apiClient.js";
@@ -292,6 +293,22 @@ tasksRoutes.post("/tasks/:id/comment", async (c) => {
       message="Comment added."
       redirectUrl={`/app/tasks/${id}`}
     />
+  );
+});
+
+tasksRoutes.post("/tasks/:id/delete", async (c) => {
+  const { id } = c.req.param();
+  const { apiUser } = c.var;
+
+  const res = await deleteTask(id, apiUser.id);
+  if (!res.ok) {
+    return c.render(
+      <SuccessPage message="Failed to delete task." redirectUrl={`/app/tasks/${id}`} />
+    );
+  }
+
+  return c.render(
+    <SuccessPage message="Task deleted." redirectUrl="/app/board/team" />
   );
 });
 

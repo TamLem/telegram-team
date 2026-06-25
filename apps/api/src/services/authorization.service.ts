@@ -55,3 +55,12 @@ export function canUpdateTask(
   if (member.userId === taskAssignedToUserId) return true;
   return false;
 }
+
+export function canDeleteTask(
+  member: TeamMember,
+  taskCreatedById: string
+): boolean {
+  if (isAdminOrOwner(member.role)) return true;
+  if (member.userId === taskCreatedById) return true;
+  return false;
+}

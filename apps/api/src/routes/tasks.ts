@@ -22,8 +22,10 @@ import {
   getTaskComments,
   getTaskEvents,
   notifyAssignee,
+  deleteTask,
 } from "../services/task.service.js";
 import { getTeamMember, getUserActiveMemberships } from "../services/membership.service.js";
+import { canDeleteTask } from "../services/authorization.service.js";
 
 export const tasksRouter = new Hono();
 
@@ -382,4 +384,33 @@ tasksRouter.post("/tasks/:taskId/notify", async (c) => {
 
   const result = await notifyAssignee(taskId, userId);
   return c.json(result);
+});
+
+tasksRouter.delete("/tasks/:taskId", async (c) => {
+  const { taskId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const task = await getTaskById(taskId);
+  if (!task) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  const member = await getTeamMember(task.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  if (!canDeleteTask(member, task.createdById)) {
+    return c.json({ error: "Only the creator or admins can delete this task" }, 403);
+  }
+
+  const deleted = await deleteTask(taskId, userId);
+  if (!deleted) {
+    return c.json({ error: "Failed to delete task" }, 500);
+  }
+
+  return c.json({ ok: true });
 });

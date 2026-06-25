@@ -174,6 +174,10 @@ export const TaskDetailPage: FC<{
           <a href={`/app/tasks/${task.id}/status${ctxQuery}`} class="btn btn-block btn-secondary">
             Change Status
           </a>
+          <form method="post" action={`/app/tasks/${task.id}/delete${ctxQuery}`}>
+            <input type="hidden" name="ctx" value={ctx ?? ""} />
+            <button type="submit" class="btn btn-block btn-danger" onclick="return confirm('Delete this task?')">Delete Task</button>
+          </form>
         </div>
       </div>
 

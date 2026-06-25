@@ -287,6 +287,20 @@ export async function addTaskComment(
   return res.comment;
 }
 
+export async function deleteTask(
+  taskId: string,
+  userId: string
+): Promise<{ ok: boolean }> {
+  const res = await apiFetch<{ ok: boolean; error?: string }>(
+    `/api/tasks/${taskId}`,
+    {
+      method: "DELETE",
+      headers: { "X-User-Id": userId },
+    }
+  );
+  return res;
+}
+
 export interface TeamMemberResponse {
   id: string;
   teamId: string;

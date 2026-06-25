@@ -1,5 +1,5 @@
 import { getDb } from "@telegram-team/db";
-import { tasks, taskComments, taskEvents, users as usersTable } from "@telegram-team/db";
+import { tasks, taskComments, taskEvents, notifications, users as usersTable } from "@telegram-team/db";
 import { eq, desc, and, inArray, lt, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
 import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
@@ -692,4 +692,20 @@ export async function notifyAssignee(
   });
 
   return { ok: true };
+}
+
+export async function deleteTask(
+  taskId: string,
+  actorUserId: string
+): Promise<boolean> {
+  const db = getDb();
+  const task = await getTaskById(taskId);
+  if (!task) return false;
+
+  await db.delete(notifications).where(eq(notifications.taskId, taskId));
+  await db.delete(taskEvents).where(eq(taskEvents.taskId, taskId));
+  await db.delete(taskComments).where(eq(taskComments.taskId, taskId));
+  await db.delete(tasks).where(eq(tasks.id, taskId));
+
+  return true;
 }
