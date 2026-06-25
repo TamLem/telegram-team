@@ -24,8 +24,6 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     command: ["node", "apps/miniapp/dist/index.js"]
-    ports:
-      - "${MINIAPP_PORT:-3002}:3002"
     environment:
       NODE_ENV: production
       MINIAPP_PORT: "3002"
@@ -45,8 +43,6 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     command: ["node", "apps/bot/dist/index.js"]
-    ports:
-      - "${BOT_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       BOT_TOKEN: ${BOT_TOKEN}
