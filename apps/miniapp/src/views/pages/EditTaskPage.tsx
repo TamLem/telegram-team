@@ -8,7 +8,7 @@ export const EditTaskPage: FC<{
   ctx?: string;
   error?: string;
 }> = ({ task, ctx, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   const dueValue = task.dueAt
     ? new Date(task.dueAt).toISOString().split("T")[0]
     : "";

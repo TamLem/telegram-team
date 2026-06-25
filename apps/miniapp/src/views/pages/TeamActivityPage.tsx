@@ -47,7 +47,7 @@ export const TeamActivityPage: FC<{
   ctx?: string;
   error?: string;
 }> = ({ teamId, events, ctx, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
 
   return (
     <div>

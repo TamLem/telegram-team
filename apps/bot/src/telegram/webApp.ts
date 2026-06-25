@@ -3,6 +3,10 @@ import {
   type MiniAppAction,
 } from "@telegram-team/shared";
 
+export function miniAppRootUrl(baseUrl: string): string {
+  return new URL("/app", baseUrl).toString();
+}
+
 function actionToPath(action: MiniAppAction, ctx: {
   teamId?: string;
   taskId?: string;

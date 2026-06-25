@@ -10,7 +10,7 @@ export const AssignTaskPage: FC<{
   ctx?: string;
   error?: string;
 }> = ({ task, members, currentUserId, ctx, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
 
   return (
     <div>

@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual, randomBytes } from "node:crypto";
 
-export const MINIAPP_CONTEXT_DEFAULT_TTL_SECONDS = 15 * 60;
+// Telegram messages and menu buttons commonly outlive a browser session.
+// Contexts remain user-bound and signed; API authorization is still checked
+// when the linked action is opened.
+export const MINIAPP_CONTEXT_DEFAULT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 export type MiniAppAction =
   | "create_task"

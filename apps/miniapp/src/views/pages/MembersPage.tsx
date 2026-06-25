@@ -12,7 +12,7 @@ export const MembersPage: FC<{
   error?: string;
   success?: string;
 }> = ({ teamId, members, userRole, currentUserId, ctx, error, success }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   return (

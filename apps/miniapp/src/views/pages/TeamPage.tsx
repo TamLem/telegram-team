@@ -9,7 +9,7 @@ export const TeamPage: FC<{
   ctx?: string;
   error?: string;
 }> = ({ team, userRole, memberCount, pendingRequestCount, ctx, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   return (
@@ -44,7 +44,15 @@ export const TeamPage: FC<{
           </div>
           {isAdmin && (
             <div style="flex: 1; text-align: center;">
-              <div style="font-size: 24px; font-weight: 700; color: {pendingRequestCount > 0 ? 'var(--tg-theme-destructive-text-color, #dc2626)' : 'inherit'}">
+              <div
+                style={{
+                  fontSize: "24px",
+                  fontWeight: 700,
+                  color: pendingRequestCount > 0
+                    ? "var(--tg-theme-destructive-text-color, #dc2626)"
+                    : "inherit",
+                }}
+              >
                 {pendingRequestCount}
               </div>
               <div class="card-subtitle">Pending Requests</div>

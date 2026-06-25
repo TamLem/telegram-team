@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppUser } from "../auth/requireMiniAppUser.js";
 import { TaskDetailPage } from "../views/pages/TaskDetailPage.js";
 import { NewTaskPage } from "../views/pages/NewTaskPage.js";
 import { EditTaskPage } from "../views/pages/EditTaskPage.js";
@@ -22,7 +22,7 @@ import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
 const tasksRoutes = new Hono<{ Variables: AppVariables }>();
 
-tasksRoutes.use("*", requireMiniAppContext());
+tasksRoutes.use("*", requireMiniAppUser());
 
 async function fetchMembers(teamId: string | undefined, userId: string): Promise<TeamMemberResponse[]> {
   if (!teamId) return [];
@@ -36,13 +36,14 @@ async function fetchMembers(teamId: string | undefined, userId: string): Promise
 tasksRoutes.get("/tasks/new", async (c) => {
   const apiUser = c.get("apiUser");
   const ctx = c.get("ctx");
+  const teamId = ctx?.teamId ?? c.get("activeTeamId");
 
-  const members = await fetchMembers(ctx.teamId, apiUser.id);
+  if (!teamId) return c.redirect("/app/onboarding");
+  const members = await fetchMembers(teamId, apiUser.id);
 
   return c.render(
     <NewTaskPage
-      teamId={ctx.teamId ?? ""}
-      ctx={c.req.query("ctx")}
+      teamId={teamId}
       members={members}
       currentUserId={apiUser.id}
     />
@@ -75,6 +76,8 @@ tasksRoutes.get("/tasks/:id", async (c) => {
 tasksRoutes.post("/tasks", async (c) => {
   const apiUser = c.get("apiUser");
   const ctx = c.get("ctx");
+  const teamId = ctx?.teamId ?? c.get("activeTeamId");
+  if (!teamId) return c.redirect("/app/onboarding");
 
   const body = await c.req.parseBody<{
     title: string;
@@ -85,11 +88,10 @@ tasksRoutes.post("/tasks", async (c) => {
   }>();
 
   if (!body.title || body.title.trim().length === 0) {
-    const members = await fetchMembers(ctx.teamId, apiUser.id);
+    const members = await fetchMembers(teamId, apiUser.id);
     return c.render(
       <NewTaskPage
-        teamId={ctx.teamId ?? ""}
-        ctx={c.req.query("ctx")}
+        teamId={teamId}
         error="Title is required"
         members={members}
         currentUserId={apiUser.id}
@@ -103,14 +105,14 @@ tasksRoutes.post("/tasks", async (c) => {
     priority: body.priority ?? "normal",
     dueAt: body.dueAt || null,
     assignedToUserId: body.assignedToUserId || null,
-    teamId: ctx.teamId ?? "",
+    teamId,
     createdById: apiUser.id,
   });
 
   return c.render(
     <SuccessPage
       message="Task created successfully."
-      redirectUrl={`/app/tasks/${task.id}?ctx=${c.req.query("ctx") ?? ""}`}
+      redirectUrl={`/app/tasks/${task.id}`}
     />
   );
 });
@@ -161,7 +163,7 @@ tasksRoutes.post("/tasks/:id/edit", async (c) => {
   return c.render(
     <SuccessPage
       message="Task updated successfully."
-      redirectUrl={`/app/tasks/${id}?ctx=${c.req.query("ctx") ?? ""}`}
+      redirectUrl={`/app/tasks/${id}`}
     />
   );
 });
@@ -223,7 +225,7 @@ tasksRoutes.post("/tasks/:id/assign", async (c) => {
   return c.render(
     <SuccessPage
       message="Task assigned successfully."
-      redirectUrl={`/app/tasks/${id}?ctx=${c.req.query("ctx") ?? ""}`}
+      redirectUrl={`/app/tasks/${id}`}
     />
   );
 });
@@ -252,7 +254,7 @@ tasksRoutes.post("/tasks/:id/status", async (c) => {
   return c.render(
     <SuccessPage
       message="Status updated successfully."
-      redirectUrl={`/app/tasks/${id}?ctx=${c.req.query("ctx") ?? ""}`}
+      redirectUrl={`/app/tasks/${id}`}
     />
   );
 });
@@ -288,7 +290,7 @@ tasksRoutes.post("/tasks/:id/comment", async (c) => {
   return c.render(
     <SuccessPage
       message="Comment added."
-      redirectUrl={`/app/tasks/${id}?ctx=${ctxQuery}`}
+      redirectUrl={`/app/tasks/${id}`}
     />
   );
 });

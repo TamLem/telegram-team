@@ -1,7 +1,6 @@
 import type { FC } from "hono/jsx";
 
-export const OnboardingPage: FC<{ ctx?: string }> = ({ ctx }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+export const OnboardingPage: FC<{ ctx?: string }> = () => {
   return (
     <div>
       <div class="header">
@@ -13,10 +12,10 @@ export const OnboardingPage: FC<{ ctx?: string }> = ({ ctx }) => {
       </p>
 
       <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 20px;">
-        <a href={`/app/onboarding/create-team${ctxQuery}`} class="btn btn-block">
+        <a href="/app/onboarding/create-team" class="btn btn-block">
           Create Team
         </a>
-        <a href={`/app/onboarding/join-team${ctxQuery}`} class="btn btn-block btn-secondary">
+        <a href="/app/onboarding/join-team" class="btn btn-block btn-secondary">
           Join Team
         </a>
       </div>

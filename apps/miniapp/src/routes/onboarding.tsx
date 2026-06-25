@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppUser, setActiveTeam } from "../auth/requireMiniAppUser.js";
 import { OnboardingPage } from "../views/pages/OnboardingPage.js";
 import { CreateTeamPage } from "../views/pages/CreateTeamPage.js";
 import { JoinTeamPage } from "../views/pages/JoinTeamPage.js";
@@ -9,14 +9,14 @@ import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
 const onboardingRoutes = new Hono<{ Variables: AppVariables }>();
 
-onboardingRoutes.use("*", requireMiniAppContext());
+onboardingRoutes.use("*", requireMiniAppUser());
 
 onboardingRoutes.get("/onboarding", async (c) => {
-  return c.render(<OnboardingPage ctx={c.req.query("ctx")} />);
+  return c.render(<OnboardingPage />);
 });
 
 onboardingRoutes.get("/onboarding/create-team", async (c) => {
-  return c.render(<CreateTeamPage ctx={c.req.query("ctx")} />);
+  return c.render(<CreateTeamPage />);
 });
 
 onboardingRoutes.post("/onboarding/create-team", async (c) => {
@@ -24,29 +24,30 @@ onboardingRoutes.post("/onboarding/create-team", async (c) => {
   const body = await c.req.parseBody<{ name: string }>();
 
   if (!body.name || body.name.trim().length === 0) {
-    return c.render(<CreateTeamPage ctx={c.req.query("ctx")} error="Team name is required" />);
+    return c.render(<CreateTeamPage error="Team name is required" />);
   }
 
   try {
     const team = await createTeam(apiUser.id, body.name.trim());
+    setActiveTeam(c, team.id);
 
     return c.render(
       <SuccessPage
         title="Team ready"
         message={`${team.name} is set up. We sent the invite code and next steps to your Telegram chat.`}
         detail={`Invite code: ${team.inviteCode}`}
-        closeLabel="Close TaskPilot"
-        autoClose={true}
+        redirectUrl={`/app/board/${team.id}`}
+        actionLabel="Open board"
       />
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Failed to create team";
-    return c.render(<CreateTeamPage ctx={c.req.query("ctx")} error={errorMsg} />);
+    return c.render(<CreateTeamPage error={errorMsg} />);
   }
 });
 
 onboardingRoutes.get("/onboarding/join-team", async (c) => {
-  return c.render(<JoinTeamPage ctx={c.req.query("ctx")} />);
+  return c.render(<JoinTeamPage />);
 });
 
 onboardingRoutes.post("/onboarding/join-team", async (c) => {
@@ -54,7 +55,7 @@ onboardingRoutes.post("/onboarding/join-team", async (c) => {
   const body = await c.req.parseBody<{ inviteCode: string }>();
 
   if (!body.inviteCode || body.inviteCode.trim().length === 0) {
-    return c.render(<JoinTeamPage ctx={c.req.query("ctx")} error="Invite code is required" />);
+    return c.render(<JoinTeamPage error="Invite code is required" />);
   }
 
   try {
@@ -65,13 +66,13 @@ onboardingRoutes.post("/onboarding/join-team", async (c) => {
         title="Request sent"
         message="An admin will review your request. We sent a confirmation to your Telegram chat."
         detail="You’ll receive another message when the request is approved or rejected."
-        closeLabel="Close TaskPilot"
-        autoClose={true}
+        redirectUrl="/app/onboarding"
+        actionLabel="Back to onboarding"
       />
     );
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : "Failed to join team";
-    return c.render(<JoinTeamPage ctx={c.req.query("ctx")} error={errorMsg} />);
+    return c.render(<JoinTeamPage error={errorMsg} />);
   }
 });
 

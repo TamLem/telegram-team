@@ -10,7 +10,7 @@ export const NewTaskPage: FC<{
   members?: TeamMemberResponse[];
   currentUserId?: string;
 }> = ({ teamId, ctx, error, members = [], currentUserId }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   return (
     <div>
       <MiniAppNav ctx={ctx} teamId={teamId} current="new" />

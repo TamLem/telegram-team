@@ -83,7 +83,7 @@ export const TaskDetailPage: FC<{
   ctx?: string;
   commentError?: string;
 }> = ({ task, comments, events, ctx, commentError }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   const teamId = task?.teamId;
 
   if (!task) {

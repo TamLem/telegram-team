@@ -138,17 +138,24 @@ body {
   border-top: 1px solid var(--tg-theme-hint-color, rgba(0,0,0,0.04));
 }
 .board-task:first-child { border-top: none; }
+.board-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
 .board-task-main {
   display: flex;
+  flex: 1;
+  min-width: 0;
   align-items: flex-start;
   padding: 12px 4px;
   text-decoration: none;
   color: inherit;
   gap: 8px;
 }
-.board-task-main form {
+.board-task-status {
   flex-shrink: 0;
-  margin-top: 2px;
+  padding: 14px 4px 0 0;
 }
 .board-task-body {
   flex: 1;
@@ -327,6 +334,11 @@ body {
 }
 
 .form-group { margin-bottom: 16px; }
+.form-error {
+  margin-top: 8px;
+  color: var(--tg-theme-destructive-text-color, #dc2626);
+  font-size: 14px;
+}
 .form-label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--tg-theme-hint-color, #64748b); }
 .form-input {
   width: 100%;
@@ -412,6 +424,42 @@ body {
 
 .task-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 
+.team-picker {
+  display: grid;
+  gap: 8px;
+}
+.team-picker-option {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  border: 1px solid var(--tg-theme-hint-color, rgba(0,0,0,.1));
+  border-radius: 12px;
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  color: var(--tg-theme-text-color, #222);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.team-picker-option span:first-child {
+  display: grid;
+  gap: 2px;
+}
+.team-picker-option small {
+  color: var(--tg-theme-hint-color, #64748b);
+  text-transform: capitalize;
+}
+.team-picker-option--active {
+  border-color: var(--tg-theme-button-color, #3390ec);
+}
+.team-picker-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+.team-picker-actions .btn { flex: 1; }
+
 .miniapp-nav {
   display: flex;
   justify-content: space-between;
@@ -449,7 +497,6 @@ body {
   background: var(--tg-theme-button-color, #3390ec);
   color: var(--tg-theme-button-text-color, #fff);
 }
-</style>
 `;
 
 const script = `

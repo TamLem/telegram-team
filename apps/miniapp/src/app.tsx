@@ -18,12 +18,12 @@ app.get("/ready", (c) => {
   return c.json({ status: "ready", timestamp: new Date().toISOString() });
 });
 
-app.get(
-  "*",
-  jsxRenderer(({ children }) => {
-    return <Layout>{children}</Layout>;
-  })
-);
+const appRenderer = jsxRenderer(({ children }) => {
+  return <Layout>{children}</Layout>;
+});
+
+app.use("/app", appRenderer);
+app.use("/app/*", appRenderer);
 
 app.route("/app", launchRoutes);
 app.route("/app", onboardingRoutes);

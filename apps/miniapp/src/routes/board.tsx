@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppUser, setActiveTeam } from "../auth/requireMiniAppUser.js";
 import { BoardPage } from "../views/pages/BoardPage.js";
 import { getBoard, getTeamMembers } from "../services/apiClient.js";
 import type { AppVariables } from "../auth/requireMiniAppUser.js";
@@ -7,7 +7,7 @@ import type { TeamMemberResponse } from "../services/apiClient.js";
 
 const boardRoutes = new Hono<{ Variables: AppVariables }>();
 
-boardRoutes.use("*", requireMiniAppContext());
+boardRoutes.use("*", requireMiniAppUser());
 
 boardRoutes.get("/board/:teamId", async (c) => {
   const { teamId } = c.req.param();
@@ -17,6 +17,7 @@ boardRoutes.get("/board/:teamId", async (c) => {
   const filterPriority = c.req.query("priority") ?? null;
 
   const { columns } = await getBoard(teamId, apiUser.id);
+  setActiveTeam(c, teamId);
 
   let members: TeamMemberResponse[] = [];
   try {
@@ -32,7 +33,6 @@ boardRoutes.get("/board/:teamId", async (c) => {
       filterPriority={filterPriority}
       members={members}
       currentUserId={apiUser.id}
-      ctx={c.req.query("ctx")}
     />
   );
 });

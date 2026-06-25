@@ -12,12 +12,15 @@ import { getOrCreateUser, getUserTeams } from "../services/apiClient.js";
 export interface AppVariables {
   telegramUser: TelegramUser;
   apiUser: { id: string };
-  ctx: MiniAppContext;
+  ctx?: MiniAppContext;
   teams: Array<{ id: string; name: string; role: string }>;
+  activeTeamId?: string;
 }
 
 const SESSION_COOKIE = "ttp_session";
-const SESSION_MAX_AGE_SECONDS = 15 * 60;
+const ACTIVE_TEAM_COOKIE = "ttp_active_team";
+const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
+const ACTIVE_TEAM_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 interface MiniAppSession {
   user: TelegramUser;
@@ -32,6 +35,14 @@ export function shouldBootstrapMiniAppSession(
     sessionTelegramUserId !== contextTelegramUserId;
 }
 
+export function shouldRefreshStandaloneIdentity(
+  pathname: string,
+  authenticated: string | null,
+  hasContext: boolean
+): boolean {
+  return pathname === "/app" && !hasContext && authenticated !== "1";
+}
+
 function sessionSecret(): string {
   return (
     getEnvOptional("MINIAPP_CONTEXT_SECRET") ??
@@ -42,6 +53,28 @@ function sessionSecret(): string {
 
 function sign(value: string, secret: string): string {
   return createHmac("sha256", secret).update(value).digest("hex");
+}
+
+function signedValue(value: string): string {
+  return `${value}.${sign(value, sessionSecret())}`;
+}
+
+function readSignedValue(cookie: string | undefined): string | null {
+  if (!cookie) return null;
+  const dotIndex = cookie.lastIndexOf(".");
+  if (dotIndex <= 0) return null;
+  const value = cookie.slice(0, dotIndex);
+  const signature = cookie.slice(dotIndex + 1);
+  const expected = sign(value, sessionSecret());
+  const signatureBuffer = Buffer.from(signature, "hex");
+  const expectedBuffer = Buffer.from(expected, "hex");
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+  return value;
 }
 
 function encodeBase64Url(value: string): string {
@@ -117,7 +150,14 @@ async function attachTelegramUser(c: any, telegramUser: TelegramUser) {
   }
 }
 
-function renderBootstrapPage(ctxToken: string): Response {
+function safeAppPath(value: string | undefined): string {
+  if (!value || !value.startsWith("/app") || value.startsWith("//")) {
+    return "/app";
+  }
+  return value;
+}
+
+function renderBootstrapPage(ctxToken: string | undefined, returnTo: string): Response {
   const body = `<!doctype html>
 <html lang="en">
 <head>
@@ -129,8 +169,9 @@ function renderBootstrapPage(ctxToken: string): Response {
 <body>
 <script>
 (async function () {
-  var app = window.Telegram && window.Telegram.WebApp;
-  var ctx = ${JSON.stringify(ctxToken)};
+	  var app = window.Telegram && window.Telegram.WebApp;
+	  var ctx = ${JSON.stringify(ctxToken ?? "")};
+	  var returnTo = ${JSON.stringify(safeAppPath(returnTo))};
   if (!app || !app.initData) {
     document.body.textContent = "Open this app from Telegram.";
     return;
@@ -140,8 +181,9 @@ function renderBootstrapPage(ctxToken: string): Response {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        initData: app.initData,
-        ctx: ctx,
+	        initData: app.initData,
+	        ctx: ctx,
+	        returnTo: returnTo,
       }),
     });
     if (!res.ok) {
@@ -163,18 +205,28 @@ function renderBootstrapPage(ctxToken: string): Response {
   });
 }
 
-export function requireMiniAppContext(): MiddlewareHandler<{
+export function setActiveTeam(c: any, teamId: string): void {
+  setCookie(c, ACTIVE_TEAM_COOKIE, signedValue(teamId), {
+    httpOnly: true,
+    secure: getEnvOptional("NODE_ENV") === "production",
+    sameSite: "Lax",
+    path: "/app",
+    maxAge: ACTIVE_TEAM_MAX_AGE_SECONDS,
+  });
+  c.set("activeTeamId", teamId);
+}
+
+export function requireMiniAppUser(): MiddlewareHandler<{
   Variables: AppVariables;
 }> {
   return async (c, next) => {
-    const ctxToken = c.req.query("ctx") ?? "";
+    const ctxToken = c.req.query("ctx");
+    const requestUrl = new URL(c.req.url);
+    const ctx = ctxToken
+      ? verifySignedMiniAppContext(ctxToken) ?? undefined
+      : undefined;
 
-    if (!ctxToken) {
-      return c.json({ error: "Missing context token" }, 400);
-    }
-
-    const ctx = verifySignedMiniAppContext(ctxToken);
-    if (!ctx) {
+    if (ctxToken && !ctx) {
       return c.html(
         `<!doctype html><html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /><style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:24px;background:var(--tg-theme-bg-color,#fff);color:var(--tg-theme-text-color,#1e293b);text-align:center}p{margin:12px 0;color:var(--tg-theme-hint-color,#64748b)}a{display:inline-block;margin-top:16px;padding:10px 24px;background:var(--tg-theme-button-color,#3390ec);color:var(--tg-theme-button-text-color,#fff);text-decoration:none;border-radius:8px;font-weight:600}</style><title>Link Expired</title></head><body><h2>Link Expired</h2><p>This action link is invalid or expired.<br/>Please open it again from Telegram.</p><a href="https://t.me/TaskManagerBot">Open Bot</a></body></html>`,
         403
@@ -182,12 +234,24 @@ export function requireMiniAppContext(): MiddlewareHandler<{
     }
 
     const sessionUser = readMiniAppSessionCookie(getCookie(c, SESSION_COOKIE));
+    const refreshStandaloneIdentity = shouldRefreshStandaloneIdentity(
+      requestUrl.pathname,
+      requestUrl.searchParams.get("authenticated"),
+      Boolean(ctx)
+    );
 
     if (
+      refreshStandaloneIdentity ||
       !sessionUser ||
-      shouldBootstrapMiniAppSession(sessionUser.id, ctx.telegramUserId)
+      (ctx && shouldBootstrapMiniAppSession(sessionUser.id, ctx.telegramUserId))
     ) {
-      return renderBootstrapPage(ctxToken);
+      if (refreshStandaloneIdentity) {
+        requestUrl.searchParams.set("authenticated", "1");
+      }
+      return renderBootstrapPage(
+        ctxToken,
+        `${requestUrl.pathname}${requestUrl.search}`
+      );
     }
 
     try {
@@ -197,6 +261,19 @@ export function requireMiniAppContext(): MiddlewareHandler<{
       return c.json({ error: "Failed to sync user" }, 500);
     }
 
+    const teams = c.get("teams");
+    const requestedTeamId = ctx?.teamId;
+    const cookieTeamId = readSignedValue(
+      getCookie(c, ACTIVE_TEAM_COOKIE)
+    );
+    const activeTeamId =
+      teams.find((team) => team.id === requestedTeamId)?.id ??
+      teams.find((team) => team.id === cookieTeamId)?.id ??
+      teams[0]?.id;
+
+    if (activeTeamId) {
+      setActiveTeam(c, activeTeamId);
+    }
     c.set("ctx", ctx);
     return next();
   };
@@ -204,12 +281,18 @@ export function requireMiniAppContext(): MiddlewareHandler<{
 
 import type { Hono } from "hono";
 
-export function setupAuthRoutes(app: Hono) {
+export function setupAuthRoutes(app: Hono<any>) {
   app.post("/auth", async (c) => {
-    const body = await c.req.json<{ initData: string; ctx: string }>();
+    const body = await c.req.json<{
+      initData: string;
+      ctx?: string;
+      returnTo?: string;
+    }>();
 
-    const ctx = verifySignedMiniAppContext(body.ctx ?? "");
-    if (!ctx) {
+    const ctx = body.ctx
+      ? verifySignedMiniAppContext(body.ctx)
+      : undefined;
+    if (body.ctx && !ctx) {
       return c.json({ error: "Invalid or expired context" }, 403);
     }
 
@@ -220,7 +303,7 @@ export function setupAuthRoutes(app: Hono) {
       return c.json({ error: "Invalid Telegram init data" }, 403);
     }
 
-    if (result.user.id !== ctx.telegramUserId) {
+    if (ctx && result.user.id !== ctx.telegramUserId) {
       return c.json(
         { error: "This action link belongs to another Telegram user." },
         403
@@ -235,10 +318,14 @@ export function setupAuthRoutes(app: Hono) {
       maxAge: SESSION_MAX_AGE_SECONDS,
     });
 
-    const redirectPath = actionToPath(ctx);
+    const redirectPath = ctx
+      ? actionToPath(ctx)
+      : safeAppPath(body.returnTo);
     const separator = redirectPath.includes("?") ? "&" : "?";
     return c.json({
-      redirect: `${redirectPath}${separator}ctx=${body.ctx}`,
+      redirect: ctx && body.ctx
+        ? `${redirectPath}${separator}ctx=${body.ctx}`
+        : redirectPath,
     });
   });
 }
@@ -282,4 +369,8 @@ function actionToPath(ctx: MiniAppContext): string {
   }
 }
 
-export { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS };
+export {
+  ACTIVE_TEAM_COOKIE,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SECONDS,
+};

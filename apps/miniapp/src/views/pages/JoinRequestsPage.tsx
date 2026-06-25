@@ -12,7 +12,7 @@ export const JoinRequestsPage: FC<{
   error?: string;
   success?: string;
 }> = ({ teamId, requests, ctx, error, success }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
 
   return (
     <div>

@@ -4,11 +4,11 @@ export const MiniAppNav: FC<{
   ctx?: string;
   teamId?: string;
   current?: "board" | "team" | "new";
-}> = ({ ctx, teamId, current }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+}> = ({ teamId, current }) => {
   const links: Array<{ label: string; href: string; id: string }> = [
-    { label: "Board", href: teamId ? `/app/board/${teamId}${ctxQuery}` : "#", id: "board" },
-    { label: "Team", href: `/app/team${ctxQuery}`, id: "team" },
+    { label: "Home", href: "/app", id: "home" },
+    { label: "Board", href: teamId ? `/app/board/${teamId}` : "#", id: "board" },
+    { label: "Team", href: "/app/team", id: "team" },
   ];
 
   return (
@@ -23,7 +23,7 @@ export const MiniAppNav: FC<{
           </a>
         ))}
       </div>
-      <a href={`/app/tasks/new${ctxQuery}`} class="miniapp-nav-cta">
+      <a href="/app/tasks/new" class="miniapp-nav-cta">
         + New
       </a>
     </nav>

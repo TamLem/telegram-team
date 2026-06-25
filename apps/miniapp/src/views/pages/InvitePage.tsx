@@ -9,7 +9,7 @@ export const InvitePage: FC<{
   success?: string;
   error?: string;
 }> = ({ teamId, inviteCode, userRole, ctx, success, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
   const isAdmin = userRole === "owner" || userRole === "admin";
 
   return (

@@ -7,6 +7,7 @@ export const SuccessPage: FC<{
   redirectUrl?: string;
   autoClose?: boolean;
   closeLabel?: string;
+  actionLabel?: string;
 }> = ({
   title = "Done",
   message,
@@ -14,6 +15,7 @@ export const SuccessPage: FC<{
   redirectUrl,
   autoClose = true,
   closeLabel = "Close",
+  actionLabel = "Continue",
 }) => {
   const script = redirectUrl
     ? `setTimeout(function(){ window.location.href = ${JSON.stringify(redirectUrl)}; }, 1000);`
@@ -21,7 +23,22 @@ export const SuccessPage: FC<{
       ? `
         (function () {
           var app = window.Telegram && window.Telegram.WebApp;
-          var close = function () { try { app && app.close(); } catch (e) {} };
+          var button = document.getElementById("confirmation-close");
+          var close = function () {
+            try {
+              if (app) {
+                app.ready();
+                app.close();
+                return;
+              }
+            } catch (e) {}
+            if (window.history.length > 1) {
+              window.history.back();
+            }
+          };
+          if (button) {
+            button.addEventListener("click", close);
+          }
           if (app && app.MainButton) {
             app.MainButton.setText(${JSON.stringify(closeLabel)});
             app.MainButton.show();
@@ -45,14 +62,14 @@ export const SuccessPage: FC<{
       {detail && <p class="confirmation-detail">{detail}</p>}
       {redirectUrl && (
         <a href={redirectUrl} class="btn confirmation-action">
-          View Task
+          {actionLabel}
         </a>
       )}
       {!redirectUrl && (
         <button
+          id="confirmation-close"
           type="button"
           class="btn confirmation-action"
-          onclick="window.Telegram?.WebApp?.close()"
         >
           {closeLabel}
         </button>

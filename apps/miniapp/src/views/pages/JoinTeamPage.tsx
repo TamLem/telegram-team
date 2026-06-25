@@ -1,7 +1,6 @@
 import type { FC } from "hono/jsx";
 
 export const JoinTeamPage: FC<{ ctx?: string; error?: string }> = ({ ctx, error }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
   return (
     <div>
       <div class="header">
@@ -15,7 +14,7 @@ export const JoinTeamPage: FC<{ ctx?: string; error?: string }> = ({ ctx, error 
       )}
 
       <div class="card">
-        <form method="post" action={`/app/onboarding/join-team${ctxQuery}`}>
+        <form method="post" action="/app/onboarding/join-team">
           <input type="hidden" name="ctx" value={ctx ?? ""} />
           <div class="form-group">
             <label class="form-label" for="inviteCode">Invite Code</label>

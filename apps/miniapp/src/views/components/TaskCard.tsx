@@ -56,8 +56,8 @@ export const TaskCard: FC<{
   showActions?: boolean;
   assigneeName?: string;
   variant?: "default" | "board";
-}> = ({ task, ctx, teamId, showActions, assigneeName, variant }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+}> = ({ task, showActions, assigneeName, variant }) => {
+  const ctxQuery = "";
   const isBoard = variant === "board";
   const dueStr = formatDueDate(task.dueAt);
   const trimmedDesc = trimDescription(task.description);
@@ -65,24 +65,29 @@ export const TaskCard: FC<{
   if (isBoard) {
     return (
       <div class="board-task">
-        <a href={`/app/tasks/${task.id}${ctxQuery}`} class="board-task-main">
-          <div class="board-task-body">
-            <div class="board-task-title">{task.title}</div>
-            {trimmedDesc && (
-              <div class="board-task-desc">{trimmedDesc}</div>
-            )}
-            <div class="board-task-meta">
-              <span class={`badge badge-${task.priority}`} style="font-size: 10px; padding: 2px 6px;">
-                {PRIORITY_LABELS[task.priority] ?? task.priority}
-              </span>
-              {dueStr && <span class="board-task-due">{dueStr}</span>}
-              <span class="board-task-assignee">
-                {task.assignedToUserId ? (assigneeName ?? task.assignedToUserId.slice(0, 8)) : "Unassigned"}
-              </span>
+        <div class="board-task-row">
+          <a href={`/app/tasks/${task.id}${ctxQuery}`} class="board-task-main">
+            <div class="board-task-body">
+              <div class="board-task-title">{task.title}</div>
+              {trimmedDesc && (
+                <div class="board-task-desc">{trimmedDesc}</div>
+              )}
+              <div class="board-task-meta">
+                <span class={`badge badge-${task.priority}`} style="font-size: 10px; padding: 2px 6px;">
+                  {PRIORITY_LABELS[task.priority] ?? task.priority}
+                </span>
+                {dueStr && <span class="board-task-due">{dueStr}</span>}
+                <span class="board-task-assignee">
+                  {task.assignedToUserId ? (assigneeName ?? task.assignedToUserId.slice(0, 8)) : "Unassigned"}
+                </span>
+              </div>
             </div>
-          </div>
-          <form method="post" action={`/app/tasks/${task.id}/status${ctxQuery}`} onclick="event.stopPropagation()">
-            <input type="hidden" name="ctx" value={ctx ?? ""} />
+          </a>
+          <form
+            method="post"
+            action={`/app/tasks/${task.id}/status${ctxQuery}`}
+            class="board-task-status"
+          >
             <select
               name="status"
               class="board-task-select"
@@ -93,7 +98,7 @@ export const TaskCard: FC<{
               ))}
             </select>
           </form>
-        </a>
+        </div>
       </div>
     );
   }
@@ -116,7 +121,6 @@ export const TaskCard: FC<{
       {showActions && NEXT_STATUS[task.status] && (
         <div style="display:flex;gap:4px;padding:0 12px 10px 12px">
           <form method="post" action={`/app/tasks/${task.id}/status${ctxQuery}`} style="flex:1">
-            <input type="hidden" name="ctx" value={ctx ?? ""} />
             <input type="hidden" name="status" value={NEXT_STATUS[task.status] ?? task.status} />
             <button type="submit" class="btn btn-secondary" style="width:100%;font-size:11px;padding:4px 8px">Move to {STATUS_LABELS[NEXT_STATUS[task.status]!]}</button>
           </form>

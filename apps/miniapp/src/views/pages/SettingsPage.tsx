@@ -7,7 +7,7 @@ export const SettingsPage: FC<{
   error?: string;
   success?: string;
 }> = ({ team, ctx, error, success }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
 
   return (
     <div>

@@ -15,7 +15,7 @@ export const StatusPage: FC<{
   task: TaskResponse;
   ctx?: string;
 }> = ({ task, ctx }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+  const ctxQuery = "";
 
   return (
     <div>

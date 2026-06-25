@@ -1,8 +1,9 @@
 import type { Bot } from "@telegram-team/bot-engine";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
-import { miniAppContextUrl } from "../telegram/webApp.js";
+import { miniAppContextUrl, miniAppRootUrl } from "../telegram/webApp.js";
 import { logError } from "../logger.js";
 import { escapeHtml } from "../telegram/html.js";
+import { MAIN_MENU_KEYBOARD } from "../menu.js";
 
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
@@ -163,8 +164,9 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
     case "join_request_approved":
       return (
         `<b>Join request approved</b>\n\n` +
-        `Your request to join <b>${payload.taskTitle ?? "a team"}</b> has been approved.\n` +
-        `Reviewed by: ${payload.memberName ?? "An admin"}`
+        `You are now a member of <b>${escapeHtml(payload.taskTitle ?? "the team")}</b>.\n` +
+        `Approved by: ${escapeHtml(payload.memberName ?? "An admin")}\n\n` +
+        `Use the keyboard below or the quick actions in the next message.`
       );
 
     case "join_request_rejected":
@@ -221,6 +223,55 @@ function buildActionUrl(
     returnChatId: telegramUserId,
     taskId,
   });
+}
+
+function isMembershipReadyEvent(eventType: string): boolean {
+  return eventType === "team_created" ||
+    eventType === "join_request_approved";
+}
+
+function buildMembershipActionButtons(
+  telegramUserId: number,
+  teamId: string
+): Array<Array<{ text: string; web_app: { url: string } }>> {
+  const context = {
+    telegramUserId,
+    teamId,
+    returnChatId: telegramUserId,
+  };
+  return [
+    [
+      {
+        text: "Open My Tasks",
+        web_app: {
+          url: miniAppContextUrl(MINIAPP_BASE_URL, {
+            action: "view_my_tasks",
+            ...context,
+          }),
+        },
+      },
+      {
+        text: "Open Board",
+        web_app: {
+          url: miniAppContextUrl(MINIAPP_BASE_URL, {
+            action: "view_board",
+            ...context,
+          }),
+        },
+      },
+    ],
+    [
+      {
+        text: "Team & Members",
+        web_app: {
+          url: miniAppContextUrl(MINIAPP_BASE_URL, {
+            action: "view_team",
+            ...context,
+          }),
+        },
+      },
+    ],
+  ];
 }
 
 async function fetchUndelivered(limit = 50): Promise<NotificationItem[]> {
@@ -302,14 +353,12 @@ async function processNotification(
     ? { inline_keyboard: buttons }
     : undefined;
 
-  if (notification.eventType === "team_created" && payload.teamId) {
+  const membershipReady =
+    isMembershipReadyEvent(notification.eventType) && Boolean(payload.teamId);
+
+  if (membershipReady && payload.teamId) {
     try {
-      const menuUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
-        action: "view_my_tasks",
-        telegramUserId: notification.recipientTelegramUserId,
-        teamId: payload.teamId,
-        returnChatId: notification.recipientTelegramUserId,
-      });
+      const menuUrl = miniAppRootUrl(MINIAPP_BASE_URL);
       await bot.api.setChatMenuButton({
         chat_id: notification.recipientTelegramUserId,
         menu_button: {
@@ -331,7 +380,11 @@ async function processNotification(
     await bot.api.sendMessage(
       notification.recipientTelegramUserId,
       text,
-      replyMarkup ? { reply_markup: replyMarkup } : undefined
+      membershipReady
+        ? { reply_markup: MAIN_MENU_KEYBOARD }
+        : replyMarkup
+          ? { reply_markup: replyMarkup }
+          : undefined
     );
   } catch (err) {
     logError(
@@ -342,8 +395,37 @@ async function processNotification(
     return;
   }
 
+  if (membershipReady && payload.teamId) {
+    try {
+      await bot.api.sendMessage(
+        notification.recipientTelegramUserId,
+        "<b>Quick actions</b>",
+        {
+          reply_markup: {
+            inline_keyboard: buildMembershipActionButtons(
+              notification.recipientTelegramUserId,
+              payload.teamId
+            ),
+          },
+        }
+      );
+    } catch (err) {
+      logError(
+        `[notifications] failed to send follow-up actions to user ${notification.recipientTelegramUserId}`,
+        err instanceof Error ? err : new Error(String(err)),
+        { notificationId: notification.id }
+      );
+    }
+  }
+
   await markDelivered(notification.id);
 }
+
+export {
+  buildMembershipActionButtons,
+  formatMessage,
+  isMembershipReadyEvent,
+};
 
 export class NotificationPoller {
   private bot: Bot;

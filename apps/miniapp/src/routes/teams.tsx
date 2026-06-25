@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { requireMiniAppContext } from "../auth/requireMiniAppUser.js";
+import { requireMiniAppUser } from "../auth/requireMiniAppUser.js";
 import { TeamPage } from "../views/pages/TeamPage.js";
 import { MembersPage } from "../views/pages/MembersPage.js";
 import { InvitePage } from "../views/pages/InvitePage.js";
@@ -22,11 +22,13 @@ import type { AppVariables } from "../auth/requireMiniAppUser.js";
 
 const teamRoutes = new Hono<{ Variables: AppVariables }>();
 
-teamRoutes.use("*", requireMiniAppContext());
+teamRoutes.use("*", requireMiniAppUser());
 
 async function resolveTeamId(c: any): Promise<string | null> {
   const ctx = c.get("ctx");
-  if (ctx.teamId) return ctx.teamId;
+  if (ctx?.teamId) return ctx.teamId;
+  const activeTeamId = c.get("activeTeamId");
+  if (activeTeamId) return activeTeamId;
   const teams = c.get("teams");
   if (teams && teams.length > 0) return teams[0].id;
   return null;

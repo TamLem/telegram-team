@@ -55,8 +55,7 @@ export const BoardPage: FC<{
   members?: TeamMemberResponse[];
   currentUserId?: string;
   ctx?: string;
-}> = ({ teamId, columns, filterStatus, filterAssignee, filterPriority, members = [], currentUserId = "", ctx }) => {
-  const ctxQuery = ctx ? `?ctx=${ctx}` : "";
+}> = ({ teamId, columns, filterStatus, filterAssignee, filterPriority, members = [], currentUserId = "" }) => {
   const memberMap = buildMemberMap(members);
 
   const filteredColumns = columns.map((col) => {
@@ -73,7 +72,7 @@ export const BoardPage: FC<{
 
   return (
     <div>
-      <MiniAppNav ctx={ctx} teamId={teamId} current="board" />
+      <MiniAppNav teamId={teamId} current="board" />
 
       <div class="header">
         <h1>{filterAssignee === "me" ? "My Tasks" : "Task Board"}</h1>
@@ -98,7 +97,7 @@ export const BoardPage: FC<{
         </select>
 
         {(filterAssignee || filterPriority) && (
-          <a href={`${baseUrl}${ctxQuery}`} style="font-size:13px;color:var(--tg-theme-link-color,#3390ec);text-decoration:none;padding:8px 4px;white-space:nowrap">
+          <a href={baseUrl} style="font-size:13px;color:var(--tg-theme-link-color,#3390ec);text-decoration:none;padding:8px 4px;white-space:nowrap">
             Clear
           </a>
         )}
@@ -106,7 +105,7 @@ export const BoardPage: FC<{
 
       {totalTasks === 0 ? (
         <EmptyState icon="📋" title="No Tasks" description="No tasks match the current filters.">
-          <a href={`/app/tasks/new${ctxQuery}`} class="btn">Create Task</a>
+          <a href="/app/tasks/new" class="btn">Create Task</a>
         </EmptyState>
       ) : (
         <>
@@ -136,7 +135,7 @@ export const BoardPage: FC<{
                 <div class="board-column-empty">No {STATUS_LABELS[col.status]?.toLowerCase() ?? col.status} tasks</div>
               ) : (
                 col.tasks.map((task) => (
-                  <TaskCard task={task} ctx={ctx} teamId={teamId} variant="board" showActions
+                  <TaskCard task={task} teamId={teamId} variant="board" showActions
                     assigneeName={task.assignedToUserId ? memberMap[task.assignedToUserId] : undefined} />
                 ))
               )}
@@ -163,8 +162,6 @@ export const BoardPage: FC<{
               'if(v)qs="?assignee="+v;',
               `var p=document.getElementById("filter-priority").value;`,
               'if(p)qs+=qs?"&priority="+p:"?priority="+p;',
-              `var c="${ctxQuery}";`,
-              'if(c)qs+=qs?"&"+c.substring(1):c;',
               `window.location="${baseUrl}"+qs`,
               '};',
               'document.getElementById("filter-priority").onchange=function(){',
@@ -172,8 +169,6 @@ export const BoardPage: FC<{
               'if(v)qs="?priority="+v;',
               `var a=document.getElementById("filter-assignee").value;`,
               'if(a)qs+=qs?"&assignee="+a:"?assignee="+a;',
-              `var c="${ctxQuery}";`,
-              'if(c)qs+=qs?"&"+c.substring(1):c;',
               `window.location="${baseUrl}"+qs`,
               '};',
             ].join(''),
