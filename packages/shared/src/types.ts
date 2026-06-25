@@ -53,6 +53,7 @@ export interface Task {
   updatedAt: string;
   completedAt: string | null;
   cancelledAt: string | null;
+  lastRemindedAt: string | null;
 }
 
 export interface TaskComment {

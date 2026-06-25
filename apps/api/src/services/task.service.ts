@@ -1,6 +1,6 @@
 import { getDb } from "@telegram-team/db";
 import { tasks, taskComments, taskEvents, users as usersTable } from "@telegram-team/db";
-import { eq, desc, and, inArray, lt, isNull } from "drizzle-orm";
+import { eq, desc, and, inArray, lt, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
 import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
 import { createNotification } from "./notification.service.js";
@@ -576,4 +576,120 @@ export async function getTaskEvents(taskId: string): Promise<TaskEvent[]> {
     .from(taskEvents)
     .where(eq(taskEvents.taskId, taskId))
     .orderBy(desc(taskEvents.createdAt));
+}
+
+export async function processDeadlineAlerts(): Promise<{
+  dueSoon: number;
+  overdue: number;
+}> {
+  const db = getDb();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000).toISOString();
+  const twentyFourHoursFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const todayStr = now.toISOString().slice(0, 10);
+
+  const activeTasks = await db
+    .select()
+    .from(tasks)
+    .where(
+      and(
+        ne(tasks.status, "done"),
+        ne(tasks.status, "cancelled"),
+        isNotNull(tasks.dueAt),
+        isNotNull(tasks.assignedToUserId)
+      )
+    );
+
+  let dueSoon = 0;
+  let overdue = 0;
+
+  for (const task of activeTasks) {
+    if (!task.dueAt || !task.assignedToUserId) continue;
+
+    const dueDate = new Date(task.dueAt);
+    const isOverdue = dueDate < now && task.dueAt.slice(0, 10) < todayStr;
+    const isDueSoon = !isOverdue && dueDate <= twentyFourHoursFromNow;
+
+    const alreadyRemindedRecently =
+      task.lastRemindedAt && task.lastRemindedAt > twelveHoursAgo;
+
+    if (isOverdue) {
+      const alreadyRemindedToday =
+        task.lastRemindedAt &&
+        task.lastRemindedAt.slice(0, 10) === todayStr;
+      if (alreadyRemindedToday) continue;
+    } else if (isDueSoon) {
+      if (alreadyRemindedRecently) continue;
+    } else {
+      continue;
+    }
+
+    const actorName = task.assignedToUserId
+      ? await getUserName(task.assignedToUserId)
+      : "Someone";
+    const eventType = isOverdue ? "task_overdue" : "task_due_soon";
+
+    const payload: NotificationPayload = {
+      taskTitle: task.title,
+      taskPriority: task.priority,
+      assigneeName: actorName,
+      taskId: task.id,
+      teamId: task.teamId,
+      dueAt: task.dueAt,
+    };
+
+    await createNotification({
+      taskId: task.id,
+      teamId: task.teamId,
+      recipientUserId: task.assignedToUserId,
+      actorUserId: task.assignedToUserId,
+      eventType,
+      payload,
+    });
+
+    await db
+      .update(tasks)
+      .set({ lastRemindedAt: nowIso })
+      .where(eq(tasks.id, task.id));
+
+    if (isOverdue) overdue++;
+    else dueSoon++;
+  }
+
+  return { dueSoon, overdue };
+}
+
+export async function notifyAssignee(
+  taskId: string,
+  actorUserId: string
+): Promise<{ ok: boolean }> {
+  const task = await getTaskById(taskId);
+  if (!task || !task.assignedToUserId) {
+    return { ok: false };
+  }
+
+  const actorName = await getUserName(actorUserId);
+  const assigneeName = await getUserName(task.assignedToUserId);
+
+  const payload: NotificationPayload = {
+    taskTitle: task.title,
+    taskPriority: task.priority,
+    assigneeName,
+    actorName,
+    taskId: task.id,
+    teamId: task.teamId,
+    dueAt: task.dueAt ?? null,
+  };
+
+  await createNotification({
+    taskId: task.id,
+    teamId: task.teamId,
+    recipientUserId: task.assignedToUserId,
+    actorUserId,
+    eventType: "assignee_reminded",
+    payload,
+  });
+
+  return { ok: true };
 }

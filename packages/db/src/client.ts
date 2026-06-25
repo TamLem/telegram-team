@@ -131,6 +131,11 @@ CREATE TABLE IF NOT EXISTS team_events (
 
 function migrateDb(sqlite: Database.Database): void {
   sqlite.exec(DDL);
+  try {
+    sqlite.exec("ALTER TABLE tasks ADD COLUMN last_reminded_at TEXT");
+  } catch {
+    // column already exists (or table not yet created — safe to ignore)
+  }
 }
 
 let dbInstance: ReturnType<typeof drizzle> | null = null;

@@ -1,0 +1,72 @@
+services:
+  api:
+    image: taskpilot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["node", "apps/api/dist/index.js"]
+    environment:
+      NODE_ENV: production
+      API_PORT: "3001"
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      MINIAPP_CONTEXT_SECRET: ${MINIAPP_CONTEXT_SECRET}
+      DATABASE_URL: ${DATABASE_URL:-/app/data/app.db}
+    volumes:
+      - db-data:/app/data
+    networks:
+      - internal
+
+  miniapp:
+    image: taskpilot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["node", "apps/miniapp/dist/index.js"]
+    ports:
+      - "${MINIAPP_PORT:-3002}:3002"
+    environment:
+      NODE_ENV: production
+      MINIAPP_PORT: "3002"
+      API_BASE_URL: http://api:3001
+      BOT_TOKEN: ${BOT_TOKEN}
+      MINIAPP_CONTEXT_SECRET: ${MINIAPP_CONTEXT_SECRET}
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+
+  bot:
+    image: taskpilot:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["node", "apps/bot/dist/index.js"]
+    ports:
+      - "${BOT_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      BOT_TOKEN: ${BOT_TOKEN}
+      BOT_USERNAME: ${BOT_USERNAME}
+      BOT_UPDATE_MODE: webhook
+      BOT_WEBHOOK_SECRET: ${BOT_WEBHOOK_SECRET}
+      BOT_WEBHOOK_URL: ${BOT_WEBHOOK_URL}
+      BOT_PORT: "3000"
+      API_BASE_URL: http://api:3001
+      MINIAPP_BASE_URL: ${MINIAPP_BASE_URL}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      MINIAPP_CONTEXT_SECRET: ${MINIAPP_CONTEXT_SECRET}
+    depends_on:
+      api:
+        condition: service_started
+    networks:
+      - internal
+
+volumes:
+  db-data:
+
+networks:
+  internal:

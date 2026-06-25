@@ -90,6 +90,7 @@ export const tasks = sqliteTable("tasks", {
     .default(sql`(datetime('now'))`),
   completedAt: text("completed_at"),
   cancelledAt: text("cancelled_at"),
+  lastRemindedAt: text("last_reminded_at"),
 });
 
 export const taskComments = sqliteTable("task_comments", {

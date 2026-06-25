@@ -108,6 +108,29 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `<b>${title}</b> was marked done.`
       );
 
+    case "task_overdue":
+      return (
+        `<b>Task overdue</b>\n\n` +
+        `<b>${title}</b> is past its deadline.\n` +
+        `Due: ${formatDueDate(payload.dueAt)}\n` +
+        `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}`
+      );
+
+    case "task_due_soon":
+      return (
+        `<b>Task due soon</b>\n\n` +
+        `<b>${title}</b> is due ${formatDueDate(payload.dueAt)}.\n` +
+        `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}`
+      );
+
+    case "assignee_reminded":
+      return (
+        `<b>Reminder</b>\n\n` +
+        `${payload.actorName ?? "Someone"} reminded you about <b>${title}</b>.\n` +
+        `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}\n` +
+        `Due: ${formatDueDate(payload.dueAt)}`
+      );
+
     case "member_removed":
       return (
         `<b>You were removed from a team</b>\n\n` +

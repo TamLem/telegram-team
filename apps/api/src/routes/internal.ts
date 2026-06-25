@@ -5,6 +5,7 @@ import {
   getUndeliveredNotifications,
   markNotificationDelivered,
 } from "../services/notification.service.js";
+import { processDeadlineAlerts } from "../services/task.service.js";
 
 export const internalRouter = new Hono();
 
@@ -40,4 +41,13 @@ internalRouter.post("/internal/notifications/:id/delivered", async (c) => {
   await markNotificationDelivered(id);
 
   return c.json({ ok: true });
+});
+
+internalRouter.post("/internal/deadline-check", async (c) => {
+  if (!checkInternalKey(c)) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const result = await processDeadlineAlerts();
+  return c.json(result);
 });

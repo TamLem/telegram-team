@@ -1,201 +1,219 @@
 # TaskPilot — Deployment Guide
 
-## Overview
+## Architecture
 
-TaskPilot is a Telegram bot + Mini App for team task management. It consists of three services:
+Three services, deployed via Docker Compose on Coolify. Routing and TLS are handled by Coolify's built-in Traefik.
 
-| Service | Purpose | Port |
-|---------|---------|------|
-| `apps/api` | REST API — source of truth | 3001 (configurable via `API_PORT`) |
-| `apps/miniapp` | Telegram Mini App — SSR HTML | 3002 (configurable via `MINIAPP_PORT`) |
-| `apps/bot` | Telegram Bot — webhook/polling | 3000 (configurable via `BOT_PORT`) |
+```
+Internet
+  │  HTTPS (Coolify Traefik)
+  ├── /telegram/webhook  →  bot:3000
+  ├── /app/*              →  miniapp:3002
+  └── /health             →  miniapp:3002
 
-All services load configuration from `.env.local` at the workspace root.
+api:3001  ←── internal calls from bot and miniapp (Docker network, not publicly exposed)
+```
+
+| Service | Role | Public? | Port |
+|---------|------|---------|------|
+| `api` | Source of truth (REST + SQLite) | No — internal only | 3001 |
+| `miniapp` | Mini App SSR (HTML to Telegram WebView) | Yes (via Traefik) | 3002 |
+| `bot` | Telegram bot (webhook receiver) | Yes (via Traefik) | 3000 |
 
 ---
 
 ## Prerequisites
 
-- Node.js >= 20
-- pnpm >= 9
+- A VPS managed by [Coolify](https://coolify.io)
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- (Production) A domain with HTTPS for the bot webhook and Mini App
+- A domain (e.g., `taskpilot.example.com`) pointed to your VPS
 
 ---
 
-## Environment Variables
+## Deploy via Coolify (Docker Compose)
 
-Copy `.env.local.example` to `.env.local` and fill in all values.
+### 1. Generate secrets
 
-### Critical variables
+```bash
+# Random keys for internal security
+openssl rand -hex 32  # → INTERNAL_API_KEY
+openssl rand -hex 32  # → MINIAPP_CONTEXT_SECRET
+openssl rand -hex 32  # → BOT_WEBHOOK_SECRET
+```
+
+### 2. Create the Coolify service
+
+1. In Coolify, go to your project → **+ New** → **Docker Compose**
+2. **Source**: Git repository (point to your TaskPilot fork)
+3. **Branch**: `main`
+4. **Compose File**: `docker-compose.yml` (default, already in repo root)
+
+### 3. Configure domain routing in Coolify
+
+Coolify's Traefik handles TLS and routing. Configure path-based routing in the Coolify UI so that:
+
+- `https://your-domain.com/telegram/webhook` → `bot` service (port 3000)
+- `https://your-domain.com/*` → `miniapp` service (port 3002)
+
+### 4. Set environment variables
+
+In Coolify's environment variables UI for this service, add:
 
 ```env
-# ALL services
-INTERNAL_API_KEY=<generate-a-random-string>
-MINIAPP_CONTEXT_SECRET=<generate-a-random-string>
+# Domain (used by bot to register webhook and generate Mini App URLs)
+BOT_WEBHOOK_URL=https://taskpilot.example.com
+MINIAPP_BASE_URL=https://taskpilot.example.com
 
-# API
-API_PORT=3001
-DATABASE_URL=../../data/app.db
+# Telegram
+BOT_TOKEN=12345:abcde...
+BOT_USERNAME=YourTaskPilotBot
 
-# Mini App
-MINIAPP_PORT=3002
-API_BASE_URL=http://localhost:3001
-BOT_TOKEN=<your-bot-token>
-MINIAPP_CONTEXT_SECRET=<same-as-above>
+# Internal secrets
+INTERNAL_API_KEY=<generated-hex>
+MINIAPP_CONTEXT_SECRET=<generated-hex>
+BOT_WEBHOOK_SECRET=<generated-hex>
 
-# Bot
-BOT_TOKEN=<your-bot-token>
-BOT_USERNAME=<your-bot-username>
-BOT_UPDATE_MODE=webhook
-BOT_WEBHOOK_SECRET=<generate-a-random-string>
-BOT_PORT=3000
-API_BASE_URL=http://localhost:3001
-MINIAPP_BASE_URL=https://your-domain.com
-INTERNAL_API_KEY=<same-as-above>
-MINIAPP_CONTEXT_SECRET=<same-as-above>
+# Database (defaults to /app/data/app.db — persisted via Docker volume)
+# DATABASE_URL=/app/data/app.db
 ```
+
+### 5. Deploy
+
+Click **Deploy**. Coolify will:
+
+1. Clone the repo
+2. Build the Docker image (installs deps, compiles TypeScript, prunes devDeps)
+3. Start all 3 services (api, miniapp, bot)
+4. Provision TLS via Traefik
+5. Route traffic to miniapp and bot based on path
+
+### 6. Verify
+
+```bash
+# Health checks (through the public domain)
+curl https://taskpilot.example.com/health
+# → {"status": "ok"}
+
+# Bot webhook should be registered automatically on startup.
+# Check Telegram: send /start to your bot.
+```
+
+### 7. Pushing updates
+
+```bash
+git push origin main
+```
+
+Then click **Redeploy** in Coolify. The Docker build cache speeds up subsequent builds.
 
 ---
 
-## Starting Services
+## What Happens on Startup
 
-### 1. Build
+1. **API** starts first, auto-creates SQLite tables via `CREATE TABLE IF NOT EXISTS`, listens on port 3001 (internal only)
+2. **Mini App** boots, validates env vars, starts serving SSR pages on port 3002
+3. **Bot** boots, calls `getMe` to verify the token, registers bot commands via `setMyCommands`, calls `setWebhook` to point Telegram at `https://domain/telegram/webhook` (with `BOT_WEBHOOK_SECRET` for header verification), listens on port 3000
+4. **Notification poller** starts inside the bot process, polling the API every 5s for undelivered notifications
 
-```bash
-pnpm install
-pnpm build
-```
-
-### 2. Run migrations
-
-```bash
-pnpm db:migrate
-```
-
-Or simply start the API — migrations run automatically on startup via `CREATE TABLE IF NOT EXISTS`.
-
-### 3. Start API
-
-```bash
-node apps/api/dist/index.js
-```
-
-Verify: `GET http://localhost:3001/health` returns `{"status": "ok"}`.
-
-### 4. Start Mini App
-
-```bash
-node apps/miniapp/dist/index.js
-```
-
-Verify: `GET http://localhost:3002/health` returns `{"status": "ok"}`.
-
-### 5. Start Bot (webhook mode)
-
-```bash
-node apps/bot/dist/index.js
-```
-
-The bot automatically registers commands and sets the webhook if `BOT_WEBHOOK_URL` is provided.
+The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot uses `BOT_WEBHOOK_SECRET` to verify that incoming webhook requests really come from Telegram (validated via `X-Telegram-Bot-Api-Secret-Token` header).
 
 ---
 
-## Setting the Telegram Webhook
+## Environment Variables Reference
 
-When using `BOT_UPDATE_MODE=webhook`, the bot calls `setWebhook` on startup using `BOT_WEBHOOK_URL`.
+### All services
 
-To manually set or delete the webhook:
+| Variable | Purpose | Required |
+|----------|---------|----------|
+| `INTERNAL_API_KEY` | Secures `/api/internal/*` endpoints | Yes |
+| `MINIAPP_CONTEXT_SECRET` | HMAC key for Mini App signed context tokens | Yes |
 
-```bash
-# Set webhook
-pnpm telegram:set-webhook
+### API (`apps/api`)
 
-# Delete webhook (to switch back to polling)
-pnpm telegram:delete-webhook
-```
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `API_PORT` | HTTP listen port | `3001` |
+| `DATABASE_URL` | SQLite file path | `<workspace>/data/app.db` |
 
-Or use the scripts directly:
+### Mini App (`apps/miniapp`)
 
-```bash
-tsx apps/bot/scripts/setWebhook.ts
-tsx apps/bot/scripts/deleteWebhook.ts
-```
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `MINIAPP_PORT` | HTTP listen port | `3002` |
+| `API_BASE_URL` | Internal API URL | `http://api:3001` |
+| `BOT_TOKEN` | Telegram bot token (for initData validation) | — |
+| `MINIAPP_CONTEXT_SECRET` | Context token HMAC key | — |
 
----
+### Bot (`apps/bot`)
 
-## Production Bot Mode
-
-Production should use `BOT_UPDATE_MODE=webhook`:
-
-```env
-BOT_UPDATE_MODE=webhook
-BOT_WEBHOOK_URL=https://your-domain.com
-BOT_WEBHOOK_SECRET=<random-secret>
-```
-
-Set the webhook secret in `BOT_WEBHOOK_SECRET` to verify incoming webhook requests from Telegram.
-
-**Do not use polling mode in production.** It is only suitable for local development.
-
----
-
-## Cloudflare Tunnel (for local Mini App testing)
-
-Since Telegram Mini Apps require HTTPS, use Cloudflare Tunnel for local development:
-
-```bash
-pnpm dev
-```
-
-The root dev script (`scripts/dev.ts`) starts all three services plus a Cloudflare tunnel automatically.
-
-Run without the tunnel:
-
-```bash
-pnpm dev:no-tunnel
-```
+| Variable | Purpose | Default |
+|----------|---------|---------|
+| `BOT_TOKEN` | Telegram bot token | — |
+| `BOT_USERNAME` | Bot username (for mention parsing) | — |
+| `BOT_UPDATE_MODE` | `webhook` or `polling` | `polling` |
+| `BOT_PORT` | HTTP listen port | `3000` |
+| `BOT_WEBHOOK_URL` | Public URL for webhook registration | — |
+| `BOT_WEBHOOK_SECRET` | Verifies webhook origin from Telegram | — |
+| `API_BASE_URL` | Internal API URL | `http://api:3001` |
+| `MINIAPP_BASE_URL` | Public Mini App URL (for generated links) | — |
+| `INTERNAL_API_KEY` | Auth for notification poller API calls | — |
+| `MINIAPP_CONTEXT_SECRET` | Context token HMAC key | — |
 
 ---
 
 ## Database
 
-### SQLite
+SQLite file stored at `/app/data/app.db` inside the container, persisted via the `db-data` Docker volume.
 
-The MVP uses SQLite via `better-sqlite3`. The database file path is set via `DATABASE_URL`.
-
-Migrations run automatically in `packages/db/src/client.ts` using `CREATE TABLE IF NOT EXISTS` DDL. The drizzle-kit config is available for generating typed migrations:
+### Backup
 
 ```bash
-pnpm db:generate  # Generate migration SQL from schema
-pnpm db:push      # Push schema changes directly
+# While the container is running
+docker compose exec api cp /app/data/app.db /app/data/app.db.backup.$(date +%Y%m%d%H%M%S)
 ```
 
-### Production backup
+Then copy the backup from the volume to the host.
 
-SQLite is a single-file database. Back it up by copying the file:
+### Restore
 
 ```bash
-cp data/app.db data/app.db.backup.$(date +%Y%m%d%H%M%S)
+# Stop the API first
+docker compose stop api
+# Replace the file on the volume
+docker compose run --rm -v ./app.db:/restore.db api cp /restore.db /app/data/app.db
+# Start the API
+docker compose start api
 ```
-
-Do this while the API is stopped or use `sqlite3` with `.backup` command for live backups.
 
 ---
 
-## Health Check URLs
+## Troubleshooting
 
-| Service | Health | Readiness |
-|---------|--------|-----------|
-| API | `GET /health` | `GET /ready` (checks DB) |
-| Mini App | `GET /health` | `GET /ready` |
-| Bot (webhook) | `GET /health` | `GET /ready` |
+### Bot not responding
 
----
+Check that the webhook is registered:
+```bash
+curl -s "https://api.telegram.org/bot${BOT_TOKEN}/getWebhookInfo"
+```
+You should see `url` set to your domain and no `last_error_message`.
 
-## Important Notes
+### Mini App shows "Open from Telegram"
 
-- **No secrets committed to git.** `.env.local` is gitignored.
-- **All app URLs come from environment variables.** No hardcoded localhost in production.
-- **Missing critical env vars cause immediate exit** with a clear error message.
-- **The bot token must never be logged.** Structured logging excludes it.
+The Mini App validates Telegram initData. It only works inside a Telegram WebView. For local testing, use the Cloudflare tunnel dev setup instead.
+
+### Database errors
+
+```bash
+# View API logs
+docker compose logs api
+
+# Check the DB file exists
+docker compose exec api ls -la /app/data/
+```
+
+### Force webhook re-registration
+
+The bot registers the webhook on startup. To force a re-register, restart the bot service:
+```bash
+docker compose restart bot
+```

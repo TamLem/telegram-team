@@ -10,6 +10,7 @@ import { PollingSource } from "./updateSources/polling.js";
 import { createWebhookApp } from "./updateSources/webhook.js";
 import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
 import { NotificationPoller } from "./notifications/poller.js";
+import { DeadlinePoller } from "./notifications/deadlinePoller.js";
 import { logError } from "./logger.js";
 
 function validateEnv(): void {
@@ -71,13 +72,18 @@ async function main() {
   const poller = new NotificationPoller(bot);
   poller.start();
 
+  const deadlinePoller = new DeadlinePoller();
+  deadlinePoller.start();
+
   process.on("SIGINT", () => {
     poller.stop();
+    deadlinePoller.stop();
     pollingRef?.stop();
     process.exit(0);
   });
   process.on("SIGTERM", () => {
     poller.stop();
+    deadlinePoller.stop();
     pollingRef?.stop();
     process.exit(0);
   });

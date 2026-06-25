@@ -21,6 +21,7 @@ import {
   addTaskComment,
   getTaskComments,
   getTaskEvents,
+  notifyAssignee,
 } from "../services/task.service.js";
 import { getTeamMember, getUserActiveMemberships } from "../services/membership.service.js";
 import { isAdminOrOwner } from "../services/authorization.service.js";
@@ -377,4 +378,29 @@ tasksRouter.get("/tasks/:taskId/events", async (c) => {
   );
 
   return c.json({ events: eventsWithUsers });
+});
+
+tasksRouter.post("/tasks/:taskId/notify", async (c) => {
+  const { taskId } = c.req.param();
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const task = await getTaskById(taskId);
+  if (!task) {
+    return c.json({ error: "Task not found" }, 404);
+  }
+
+  if (!task.assignedToUserId) {
+    return c.json({ error: "Task has no assignee to notify" }, 400);
+  }
+
+  const member = await getTeamMember(task.teamId, userId);
+  if (!member) {
+    return c.json({ error: "Access denied" }, 403);
+  }
+
+  const result = await notifyAssignee(taskId, userId);
+  return c.json(result);
 });
