@@ -51,7 +51,7 @@ app.use("/app/*", async (c, next) => {
       path: c.req.path,
     });
     return c.html(
-      `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:var(--tg-theme-bg-color,#f5f5f5);color:var(--tg-theme-text-color,#222);text-align:center}</style></head><body><div><h1>Something went wrong</h1><p>Please try again or go back to Telegram.</p></div></body></html>`,
+      `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:var(--tg-theme-bg-color,#f5f5f5);color:var(--tg-theme-text-color,#222);text-align:center}</style><meta http-equiv="refresh" content="2;url=/app/onboarding"></head><body><div><h2>Reloading TaskPi...</h2><p>If nothing happens, <a href="/app/onboarding">tap here</a>.</p></div></body></html>`,
       500
     );
   }
