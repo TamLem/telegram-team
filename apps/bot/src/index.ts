@@ -15,10 +15,18 @@ import { logError } from "./logger.js";
 import { miniAppRootUrl } from "./telegram/webApp.js";
 
 function validateEnv(): void {
-  const required = ["BOT_TOKEN", "API_BASE_URL", "MINIAPP_BASE_URL", "MINIAPP_CONTEXT_SECRET", "INTERNAL_API_KEY"];
+  const required = [
+    "BOT_TOKEN",
+    "API_BASE_URL",
+    "MINIAPP_BASE_URL",
+    "MINIAPP_CONTEXT_SECRET",
+    "INTERNAL_API_KEY",
+  ];
   const missing = required.filter((k) => !getEnvOptional(k));
   if (missing.length > 0) {
-    console.error(`[bot] FATAL: missing required env vars: ${missing.join(", ")}`);
+    console.error(
+      `[bot] FATAL: missing required env vars: ${missing.join(", ")}`,
+    );
     process.exit(1);
   }
 }
@@ -67,7 +75,7 @@ async function main() {
       await bot.api.setChatMenuButton({
         menu_button: {
           type: "web_app",
-          text: "Open TaskPilot",
+          text: "Open TaskPi",
           web_app: {
             url: miniAppRootUrl(getEnv("MINIAPP_BASE_URL")),
           },
@@ -104,17 +112,23 @@ async function main() {
     pollingRef = polling;
 
     const dropPending = getEnvOptional("DROP_PENDING_UPDATES") === "true";
-    const allowedUpdates = parseListEnv(
-      getEnvOptional("BOT_ALLOWED_UPDATES"),
-      ["message", "callback_query"]
-    );
+    const allowedUpdates = parseListEnv(getEnvOptional("BOT_ALLOWED_UPDATES"), [
+      "message",
+      "callback_query",
+    ]);
     const pollTimeout = parsePositiveIntegerEnv("BOT_POLL_TIMEOUT_SECONDS", 30);
-    const maxUpdateFailures = parsePositiveIntegerEnv("BOT_MAX_UPDATE_FAILURES", 3);
+    const maxUpdateFailures = parsePositiveIntegerEnv(
+      "BOT_MAX_UPDATE_FAILURES",
+      3,
+    );
     const retryDelayMs = parsePositiveIntegerEnv("BOT_RETRY_DELAY_MS", 5_000);
-    const handlerTimeoutMs = parsePositiveIntegerEnv("BOT_HANDLER_TIMEOUT_MS", 25_000);
+    const handlerTimeoutMs = parsePositiveIntegerEnv(
+      "BOT_HANDLER_TIMEOUT_MS",
+      25_000,
+    );
     const requestTimeoutMs = parsePositiveIntegerEnv(
       "BOT_GET_UPDATES_REQUEST_TIMEOUT_MS",
-      (pollTimeout + 5) * 1000
+      (pollTimeout + 5) * 1000,
     );
 
     await polling.start({
@@ -158,7 +172,7 @@ async function main() {
   }
 
   console.error(
-    `[bot] invalid BOT_UPDATE_MODE: "${updateMode}". Use "polling" or "webhook".`
+    `[bot] invalid BOT_UPDATE_MODE: "${updateMode}". Use "polling" or "webhook".`,
   );
   process.exit(1);
 }
