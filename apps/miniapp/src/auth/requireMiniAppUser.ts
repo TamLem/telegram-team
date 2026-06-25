@@ -4,10 +4,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
 import {
   verifySignedMiniAppContext,
+  createLogger,
   type MiniAppContext,
 } from "@telegram-team/shared";
 import { validateTelegramInitData, type TelegramUser } from "./validateTelegramInitData.js";
 import { getOrCreateUser, getUserTeams } from "../services/apiClient.js";
+
+const log = createLogger("miniapp");
 
 export interface AppVariables {
   telegramUser: TelegramUser;
@@ -127,7 +130,8 @@ function readMiniAppSessionCookie(
       return null;
     }
     return session.user;
-  } catch {
+  } catch (err) {
+    log.warn("[session] invalid cookie", { err: String(err) });
     return null;
   }
 }
@@ -145,7 +149,8 @@ async function attachTelegramUser(c: any, telegramUser: TelegramUser) {
   try {
     const teams = await getUserTeams(apiUser.id);
     c.set("teams", teams);
-  } catch {
+  } catch (err) {
+    log.error("[attachUser] getUserTeams failed", err, { userId: apiUser.id });
     c.set("teams", []);
   }
 }

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { jsxRenderer } from "hono/jsx-renderer";
+import { createLogger } from "@telegram-team/shared";
 import { Layout } from "./views/layout.js";
 import { tasksRoutes } from "./routes/tasks.js";
 import { boardRoutes } from "./routes/board.js";
@@ -8,7 +9,23 @@ import { teamRoutes } from "./routes/teams.js";
 import { launchRoutes } from "./routes/launch.js";
 import type { AppVariables } from "./auth/requireMiniAppUser.js";
 
+const log = createLogger("miniapp");
 const app = new Hono<{ Variables: AppVariables }>();
+
+app.use("*", (c, next) => {
+  const start = Date.now();
+  const path = c.req.path;
+  const method = c.req.method;
+  return next().then(() => {
+    const duration = Date.now() - start;
+    if (path !== "/health" && path !== "/ready") {
+      log.info(`${method} ${path}`, {
+        status: c.res.status,
+        durationMs: duration,
+      });
+    }
+  });
+});
 
 app.get("/health", (c) => {
   return c.json({ status: "ok", timestamp: new Date().toISOString() });

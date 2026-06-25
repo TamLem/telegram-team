@@ -1,4 +1,6 @@
 import { getEnv } from "@telegram-team/config";
+import { generateId } from "@telegram-team/shared";
+import { log } from "./logger.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 
@@ -6,10 +8,12 @@ export async function apiFetch<T>(
   path: string,
   options?: RequestInit
 ): Promise<T> {
+  const requestId = generateId();
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      "X-Request-Id": requestId,
       ...options?.headers,
     },
   });
@@ -56,7 +60,8 @@ export async function getActiveTeams(
       }>;
     }>(`/api/me/teams`, { headers: { "X-User-Id": userId } });
     return teams;
-  } catch {
+  } catch (err) {
+    log.error("[apiClient] getActiveTeams failed", err);
     return [];
   }
 }
@@ -102,7 +107,9 @@ export async function getMyTaskSummary(
       else if (t.status === "cancelled") summary.cancelled++;
     }
     summary.total = tasks.length;
-  } catch {}
+  } catch (err) {
+    log.error("[apiClient] getMyTaskSummary failed", err);
+  }
   return summary;
 }
 
@@ -167,7 +174,8 @@ export async function getBoardSummary(
       myTask: raw.myTaskCount,
       topBlockedTasks: raw.topBlockedTasks,
     };
-  } catch {
+  } catch (err) {
+    log.error("[apiClient] getBoardSummary failed", err);
     return { teamId: "", totalTasks: 0, todo: 0, doing: 0, blocked: 0, done: 0, cancelled: 0, dueSoon: 0, overdue: 0, unassigned: 0, myTask: 0, topBlockedTasks: [] };
   }
 }

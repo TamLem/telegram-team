@@ -1,5 +1,7 @@
 import { getEnv } from "@telegram-team/config";
+import { createLogger } from "@telegram-team/shared";
 
+const log = createLogger("miniapp");
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 
 export interface UserResponse {
@@ -177,7 +179,8 @@ export async function getTask(
       { headers: { "X-User-Id": userId } }
     );
     return res.task;
-  } catch {
+  } catch (err) {
+    log.error("[apiClient] getTask failed", err, { taskId });
     return null;
   }
 }

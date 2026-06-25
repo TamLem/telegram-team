@@ -11,7 +11,7 @@ import { createWebhookApp } from "./updateSources/webhook.js";
 import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
 import { NotificationPoller } from "./notifications/poller.js";
 import { DeadlinePoller } from "./notifications/deadlinePoller.js";
-import { logError } from "./logger.js";
+import { logError, log } from "./logger.js";
 import { miniAppRootUrl } from "./telegram/webApp.js";
 
 function validateEnv(): void {
@@ -24,9 +24,7 @@ function validateEnv(): void {
   ];
   const missing = required.filter((k) => !getEnvOptional(k));
   if (missing.length > 0) {
-    console.error(
-      `[bot] FATAL: missing required env vars: ${missing.join(", ")}`,
-    );
+    log.error("missing required env vars", new Error(missing.join(", ")));
     process.exit(1);
   }
 }
@@ -65,7 +63,7 @@ bot.onError(async (error, ctx) => {
 });
 
 async function main() {
-  console.log(`[bot] update mode: ${updateMode}`);
+  log.info(`update mode: ${updateMode}`);
 
   await bot.api
     .getMe()
@@ -80,9 +78,12 @@ async function main() {
             url: miniAppRootUrl(getEnv("MINIAPP_BASE_URL")),
           },
         },
+      }).catch((err: unknown) => {
+        log.warn("failed to set global menu button", { err: String(err) });
       });
-      console.log(`[bot] running as @${me.username ?? me.id}`);
-      console.log("[bot] global Mini App menu updated");
+      bot.setBotUsername(me.username);
+      await bot.api.setMyCommands(BOT_COMMANDS);
+      log.info(`running as @${me.username ?? me.id}`);
     })
     .catch((err) => {
       logError("[bot] failed to initialize bot metadata", err);
@@ -158,22 +159,20 @@ async function main() {
       await bot.api
         .setWebhook(webhookUrl, webhookSecret)
         .then(() => {
-          console.log(`[webhook] set to ${webhookUrl}`);
+          log.info(`webhook set`, { url: webhookUrl });
         })
         .catch((err) => {
           logError("[webhook] failed to set", err, { webhookUrl });
         });
     }
 
-    console.log(`[bot] webhook server listening on port ${port}`);
+    log.info(`webhook server listening on port ${port}`);
 
     serve({ fetch: app.fetch, port });
     return;
   }
 
-  console.error(
-    `[bot] invalid BOT_UPDATE_MODE: "${updateMode}". Use "polling" or "webhook".`,
-  );
+  log.error("invalid BOT_UPDATE_MODE", new Error(`"${updateMode}". Use "polling" or "webhook".`));
   process.exit(1);
 }
 

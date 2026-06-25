@@ -1,8 +1,10 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { createTeamSchema, joinTeamSchema } from "@telegram-team/shared";
-import { TeamRole, MembershipStatus, TeamEventType } from "@telegram-team/shared";
+import { TeamRole, MembershipStatus, TeamEventType, createLogger } from "@telegram-team/shared";
 import { getDb, teamEvents, users as usersTable } from "@telegram-team/db";
+
+const log = createLogger("api");
 import { eq, desc } from "drizzle-orm";
 import {
   createTeam,
@@ -401,6 +403,7 @@ teamsRouter.post("/teams/join", zValidator("json", joinTeamSchema), async (c) =>
 
     return c.json({ request }, 201);
   } catch (err) {
+    log.error("[teams] createJoinRequest failed", err);
     const message = err instanceof Error ? err.message : "Failed to create join request";
     return c.json({ error: message }, 409);
   }
@@ -495,6 +498,7 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/approve", async (c) =>
     }
     return c.json({ request: updated, user: requestUser });
   } catch (err) {
+    log.error("[teams] approveJoinRequest failed", err);
     const message = err instanceof Error ? err.message : "Failed to approve request";
     return c.json({ error: message }, 400);
   }
@@ -557,6 +561,7 @@ teamsRouter.post("/teams/:teamId/join-requests/:requestId/reject", async (c) => 
     }
     return c.json({ request: updated, user: requestUser });
   } catch (err) {
+    log.error("[teams] rejectJoinRequest failed", err);
     const message = err instanceof Error ? err.message : "Failed to reject request";
     return c.json({ error: message }, 400);
   }

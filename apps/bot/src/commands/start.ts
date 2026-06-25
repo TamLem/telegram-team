@@ -2,6 +2,7 @@ import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { syncUser, getActiveTeams } from "../apiClient.js";
 import { escapeHtml } from "../telegram/html.js";
+import { log } from "../logger.js";
 import {
   buildCreateTeamButton,
   buildJoinTeamButton,
@@ -36,7 +37,9 @@ export async function startCommand(ctx: BotContext): Promise<void> {
         chat_id: chatId,
         menu_button: { type: "default" },
       });
-    } catch {}
+    } catch (err) {
+      log.error("[start] setChatMenuButton failed", err, { chatId });
+    }
 
     await ctx.reply(
       `Welcome to <b>TaskPi</b>, ${firstName}!\n\n` +
@@ -51,14 +54,16 @@ export async function startCommand(ctx: BotContext): Promise<void> {
 
   // The persistent menu opens the standalone Mini App. Signed context is
   // reserved for action-specific notification buttons.
-  try {
-    await ctx.setChatMenuButton({
-      chat_id: chatId,
-      menu_button: { type: "default" },
-    });
-  } catch {}
+    try {
+      await ctx.setChatMenuButton({
+        chat_id: chatId,
+        menu_button: { type: "default" },
+      });
+    } catch (err) {
+      log.error("[start] setChatMenuButton failed", err, { chatId });
+    }
 
-  await ctx.reply(
+    await ctx.reply(
     `Welcome back! 👋\n\n` +
       `<b>Your teams:</b>\n${teamList}\n\n` +
       `Use the button below ⤵ or the keyboard menu for quick access.`,
