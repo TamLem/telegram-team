@@ -1,6 +1,6 @@
 import type { Bot } from "@telegram-team/bot-engine";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
-import { miniAppContextUrl, miniAppRootUrl } from "../telegram/webApp.js";
+import { miniAppContextUrl } from "../telegram/webApp.js";
 import { logError } from "../logger.js";
 import { escapeHtml } from "../telegram/html.js";
 import { MAIN_MENU_KEYBOARD } from "../menu.js";
@@ -358,14 +358,9 @@ async function processNotification(
 
   if (membershipReady && payload.teamId) {
     try {
-      const menuUrl = miniAppRootUrl(MINIAPP_BASE_URL);
       await bot.api.setChatMenuButton({
         chat_id: notification.recipientTelegramUserId,
-        menu_button: {
-          type: "web_app",
-          text: "Open Tasks",
-          web_app: { url: menuUrl },
-        },
+        menu_button: { type: "default" },
       });
     } catch (err) {
       logError(

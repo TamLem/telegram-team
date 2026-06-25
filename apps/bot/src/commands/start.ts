@@ -1,16 +1,12 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { getEnv } from "@telegram-team/config";
 import { syncUser, getActiveTeams } from "../apiClient.js";
 import { escapeHtml } from "../telegram/html.js";
 import {
   buildCreateTeamButton,
   buildJoinTeamButton,
 } from "../telegram/miniAppButtons.js";
-import { miniAppRootUrl } from "../telegram/webApp.js";
 import { MAIN_MENU_KEYBOARD } from "../menu.js";
-
-const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
 
 export async function startCommand(ctx: BotContext): Promise<void> {
   const from = ctx.from;
@@ -33,15 +29,12 @@ export async function startCommand(ctx: BotContext): Promise<void> {
       ],
     };
 
-    // Keep the standalone Mini App available before onboarding is complete.
+    // Remove stale per-chat URLs so this chat inherits the global menu that
+    // is refreshed on every bot startup.
     try {
       await ctx.setChatMenuButton({
         chat_id: chatId,
-        menu_button: {
-          type: "web_app",
-          text: "Open TaskPilot",
-          web_app: { url: miniAppRootUrl(MINIAPP_BASE_URL) },
-        },
+        menu_button: { type: "default" },
       });
     } catch {}
 
@@ -58,16 +51,10 @@ export async function startCommand(ctx: BotContext): Promise<void> {
 
   // The persistent menu opens the standalone Mini App. Signed context is
   // reserved for action-specific notification buttons.
-  const miniAppUrl = miniAppRootUrl(MINIAPP_BASE_URL);
-
   try {
     await ctx.setChatMenuButton({
       chat_id: chatId,
-      menu_button: {
-        type: "web_app",
-        text: "Open Tasks",
-        web_app: { url: miniAppUrl },
-      },
+      menu_button: { type: "default" },
     });
   } catch {}
 

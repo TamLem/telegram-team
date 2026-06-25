@@ -12,6 +12,7 @@ import { BOT_COMMANDS, registerBotInteractions } from "./interactions.js";
 import { NotificationPoller } from "./notifications/poller.js";
 import { DeadlinePoller } from "./notifications/deadlinePoller.js";
 import { logError } from "./logger.js";
+import { miniAppRootUrl } from "./telegram/webApp.js";
 
 function validateEnv(): void {
   const required = ["BOT_TOKEN", "API_BASE_URL", "MINIAPP_BASE_URL", "MINIAPP_CONTEXT_SECRET", "INTERNAL_API_KEY"];
@@ -63,7 +64,17 @@ async function main() {
     .then(async (me) => {
       bot.setBotUsername(me.username);
       await bot.api.setMyCommands(BOT_COMMANDS);
+      await bot.api.setChatMenuButton({
+        menu_button: {
+          type: "web_app",
+          text: "Open TaskPilot",
+          web_app: {
+            url: miniAppRootUrl(getEnv("MINIAPP_BASE_URL")),
+          },
+        },
+      });
       console.log(`[bot] running as @${me.username ?? me.id}`);
+      console.log("[bot] global Mini App menu updated");
     })
     .catch((err) => {
       logError("[bot] failed to initialize bot metadata", err);
