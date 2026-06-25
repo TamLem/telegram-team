@@ -24,7 +24,6 @@ import {
   notifyAssignee,
 } from "../services/task.service.js";
 import { getTeamMember, getUserActiveMemberships } from "../services/membership.service.js";
-import { isAdminOrOwner } from "../services/authorization.service.js";
 
 export const tasksRouter = new Hono();
 
@@ -156,14 +155,6 @@ tasksRouter.patch("/tasks/:taskId", zValidator("json", updateTaskSchema), async 
     return c.json({ error: "Access denied" }, 403);
   }
 
-  if (
-    !isAdminOrOwner(member.role) &&
-    existing.createdById !== userId &&
-    existing.assignedToUserId !== userId
-  ) {
-    return c.json({ error: "You do not have permission to update this task" }, 403);
-  }
-
   const task = await updateTask(taskId, body, userId);
   if (!task) {
     return c.json({ error: "Failed to update task" }, 500);
@@ -191,14 +182,6 @@ tasksRouter.post(
     const member = await getTeamMember(existing.teamId, userId);
     if (!member) {
       return c.json({ error: "Access denied" }, 403);
-    }
-
-    if (
-      !isAdminOrOwner(member.role) &&
-      existing.createdById !== userId &&
-      existing.assignedToUserId !== userId
-    ) {
-      return c.json({ error: "Permission denied" }, 403);
     }
 
     const task = await updateTaskStatus(taskId, status, userId);
@@ -229,10 +212,6 @@ tasksRouter.post(
     const member = await getTeamMember(existing.teamId, userId);
     if (!member) {
       return c.json({ error: "Access denied" }, 403);
-    }
-
-    if (!isAdminOrOwner(member.role)) {
-      return c.json({ error: "Admin access required to assign tasks" }, 403);
     }
 
     const assignee = await getTeamMember(existing.teamId, assignedToUserId);
