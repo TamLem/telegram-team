@@ -90,12 +90,12 @@ export const NewTaskPage: FC<{
 
           <div class="form-group">
             <label class="form-label" for="dueAt">
-              Due Date
+              Due
             </label>
             <input
               id="dueAt"
               name="dueAt"
-              type="date"
+              type="datetime-local"
               class="form-input"
             />
           </div>

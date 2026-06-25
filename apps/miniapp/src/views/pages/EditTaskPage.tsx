@@ -10,7 +10,7 @@ export const EditTaskPage: FC<{
 }> = ({ task, ctx, error }) => {
   const ctxQuery = "";
   const dueValue = task.dueAt
-    ? new Date(task.dueAt).toISOString().split("T")[0]
+    ? task.dueAt.slice(0, 16)
     : "";
 
   return (
@@ -67,11 +67,11 @@ export const EditTaskPage: FC<{
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="dueAt">Due Date</label>
+            <label class="form-label" for="dueAt">Due</label>
             <input
               id="dueAt"
               name="dueAt"
-              type="date"
+              type="datetime-local"
               class="form-input"
               value={dueValue}
             />

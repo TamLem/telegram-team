@@ -35,12 +35,20 @@ const NEXT_STATUS: Record<string, string | null> = {
 function formatDueDate(dateString: string | null): string {
   if (!dateString) return "";
   const d = new Date(dateString);
+  const hasTime = dateString.includes("T") && dateString.length > 10;
   const now = new Date();
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
-  if (d.toDateString() === now.toDateString()) return "Today";
-  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const dayLabel = d.toDateString() === now.toDateString()
+    ? "Today"
+    : d.toDateString() === tomorrow.toDateString()
+      ? "Tomorrow"
+      : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (hasTime) {
+    const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return `${dayLabel}, ${time}`;
+  }
+  return dayLabel;
 }
 
 function trimDescription(desc: string | null, maxLen = 80): string | null {

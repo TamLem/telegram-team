@@ -32,11 +32,17 @@ function formatDate(dateString: string): string {
 function formatDueDate(dateString: string | null): string {
   if (!dateString) return "";
   const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
+  const hasTime = dateString.includes("T") && dateString.length > 10;
+  const day = date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
+  if (hasTime) {
+    const time = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+    return `${day}, ${time}`;
+  }
+  return day;
 }
 
 function actorDisplay(event: EventResponse): string {

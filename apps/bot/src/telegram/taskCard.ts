@@ -36,17 +36,20 @@ export interface TaskCardData {
 export function formatDueDate(dateString: string | null | undefined): string {
   if (!dateString) return "Not set";
   const date = new Date(dateString);
+  const hasTime = dateString.includes("T") && dateString.length > 10;
   const now = new Date();
   const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (date.toDateString() === now.toDateString()) return "Today";
-  if (date.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  if (date.toDateString() === now.toDateString()) return hasTime ? `Today, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Today";
+  if (date.toDateString() === tomorrow.toDateString()) return hasTime ? `Tomorrow, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "Tomorrow";
 
-  return date.toLocaleDateString("en-US", {
+  const day = date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
   });
+  if (hasTime) return `${day}, ${date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`;
+  return day;
 }
 
 export function renderTaskCard(task: TaskCardData): string {
