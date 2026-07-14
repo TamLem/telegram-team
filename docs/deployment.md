@@ -73,9 +73,8 @@ INTERNAL_API_KEY=<generated-hex>
 MINIAPP_CONTEXT_SECRET=<generated-hex>
 BOT_WEBHOOK_SECRET=<generated-hex>
 
-# Database: host dir bind-mounted into the API container at /app/data
-# SQLITE_HOST_PATH=/var/lib/taskpi/data
-# DATABASE_URL=/app/data/app.db
+# SQLite is bind-mounted from host /var/lib/taskpi/data → container /app/data
+# (see docker-compose.yml; no SQLITE_HOST_PATH env needed)
 ```
 
 ### 5. Deploy
@@ -134,8 +133,7 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `API_PORT` | HTTP listen port | `3001` |
-| `DATABASE_URL` | SQLite path **inside the container** | `/app/data/app.db` |
-| `SQLITE_HOST_PATH` | Host directory bind-mounted to `/app/data` | `./data` |
+| `DATABASE_URL` | Set in compose to `/app/data/app.db` (host dir is hardcoded) | — |
 
 ### Mini App (`apps/miniapp`)
 
@@ -165,25 +163,18 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 
 ## Database
 
-SQLite lives on the **host** and is bind-mounted into the API container:
+SQLite lives on the **host** and is bind-mounted into the API container (hardcoded in `docker-compose.yml`):
 
 | Side | Path |
 |------|------|
-| Host | `${SQLITE_HOST_PATH:-./data}` (e.g. `/var/lib/taskpi/data` on a VPS) |
-| Container | `/app/data` → file `DATABASE_URL` (default `/app/data/app.db`) |
+| Host | `/var/lib/taskpi/data` |
+| Container | `/app/data/app.db` |
 
-Set in Coolify/env if you do not want the compose-relative `./data` directory:
-
-```env
-SQLITE_HOST_PATH=/var/lib/taskpi/data
-DATABASE_URL=/app/data/app.db
-```
-
-Create the host directory once (owned so Docker can write; often root or the compose user):
+Ensure the host directory exists and contains `app.db` before deploying:
 
 ```bash
 sudo mkdir -p /var/lib/taskpi/data
-# if the container runs as root (default Node image), root-owned is fine
+ls -la /var/lib/taskpi/data/app.db
 ```
 
 ### Backup (host)
