@@ -58,17 +58,22 @@ export async function teamCommand(
     teamId: team.id,
     returnChatId: chatId,
   };
+  const onboardParams = {
+    telegramUserId: from.id,
+    returnChatId: chatId,
+  };
   let keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [
       [buildOpenTeamButton(params)],
       [buildOpenMembersButton(params)],
       [buildBoardButton(params)],
+      [buildCreateTeamButton(onboardParams), buildJoinTeamButton(onboardParams)],
     ],
   };
   keyboard = appendSwitchRow(keyboard, "team", teams.length > 1);
 
   await ctx.reply(
-    `<b>${escapeHtml(team.name)}</b>\n\nOpen your team workspace.`,
+    `<b>${escapeHtml(team.name)}</b>\n\nOpen your team workspace, or create/join another team.`,
     { reply_markup: keyboard }
   );
 }

@@ -61,13 +61,14 @@ onboardingRoutes.post("/onboarding/join-team", async (c) => {
   try {
     await joinTeam(apiUser.id, body.inviteCode.trim().toUpperCase());
 
+    const alreadyOnTeam = (c.get("teams") ?? []).length > 0;
     return c.render(
       <SuccessPage
         title="Request sent"
         message="An admin will review your request. We sent a confirmation to your Telegram chat."
         detail="You’ll receive another message when the request is approved or rejected."
-        redirectUrl="/app/onboarding"
-        actionLabel="Back to onboarding"
+        redirectUrl={alreadyOnTeam ? "/app/teams" : "/app/onboarding"}
+        actionLabel={alreadyOnTeam ? "Back to teams" : "Back to onboarding"}
       />
     );
   } catch (err) {

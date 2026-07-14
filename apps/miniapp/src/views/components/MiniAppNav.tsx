@@ -13,7 +13,16 @@ export const MiniAppNav: FC<{
     { label: "Team", href: "/app/team", id: "team" },
   ];
 
-  const showSwitcher = teams.length > 1 && teamId;
+  // Always expose /app/teams when the user has at least one team so they can
+  // switch workspaces or create/join additional teams (single-team users
+  // previously had no path to create/join after onboarding).
+  const showTeamsEntry = teams.length >= 1 && !!teamId;
+  const teamsLabel =
+    teams.length > 1
+      ? `${teamName ?? "Team"} ▾`
+      : teamName
+        ? `${teamName} ▾`
+        : "Teams ▾";
 
   return (
     <nav class="miniapp-nav">
@@ -28,9 +37,13 @@ export const MiniAppNav: FC<{
         ))}
       </div>
       <div class="miniapp-nav-right">
-        {showSwitcher && (
-          <a href="/app/teams" class="miniapp-nav-team" title="Switch team">
-            {teamName ?? "Team"} ▾
+        {showTeamsEntry && (
+          <a
+            href="/app/teams"
+            class="miniapp-nav-team"
+            title={teams.length > 1 ? "Switch team" : "Your teams"}
+          >
+            {teamsLabel}
           </a>
         )}
         <a

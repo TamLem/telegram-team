@@ -9,7 +9,11 @@ export const TeamPickerPage: FC<{
     <main>
       <div class="header">
         <h1>Your teams</h1>
-        <p class="card-subtitle">Choose the workspace you want to open.</p>
+        <p class="card-subtitle">
+          {teams.length > 1
+            ? "Choose the workspace you want to open."
+            : "Your workspace — or create/join another team below."}
+        </p>
         {error && <p class="form-error">{error}</p>}
       </div>
 
@@ -33,11 +37,11 @@ export const TeamPickerPage: FC<{
         ))}
       </div>
 
-      <div class="team-picker-actions">
-        <a href="/app/onboarding/create-team" class="btn btn-secondary">
+      <div class="team-picker-actions" style="display:flex;flex-direction:column;gap:8px;margin-top:16px;">
+        <a href="/app/onboarding/create-team" class="btn btn-block btn-secondary">
           Create team
         </a>
-        <a href="/app/onboarding/join-team" class="btn btn-secondary">
+        <a href="/app/onboarding/join-team" class="btn btn-block btn-secondary">
           Join team
         </a>
       </div>

@@ -51,22 +51,32 @@ export async function startCommand(ctx: BotContext): Promise<void> {
   }
 
   const teamList = teams.map((t) => `  • ${escapeHtml(t.name)}`).join("\n");
+  const onboardParams = { telegramUserId: from.id, returnChatId: chatId };
 
   // The persistent menu opens the standalone Mini App. Signed context is
   // reserved for action-specific notification buttons.
-    try {
-      await ctx.setChatMenuButton({
-        chat_id: chatId,
-        menu_button: { type: "default" },
-      });
-    } catch (err) {
-      log.error("[start] setChatMenuButton failed", err, { chatId });
-    }
+  try {
+    await ctx.setChatMenuButton({
+      chat_id: chatId,
+      menu_button: { type: "default" },
+    });
+  } catch (err) {
+    log.error("[start] setChatMenuButton failed", err, { chatId });
+  }
 
-    await ctx.reply(
+  const createJoinKeyboard: InlineKeyboardMarkup = {
+    inline_keyboard: [
+      [buildCreateTeamButton(onboardParams), buildJoinTeamButton(onboardParams)],
+    ],
+  };
+
+  await ctx.reply(
     `Welcome back! 👋\n\n` +
       `<b>Your teams:</b>\n${teamList}\n\n` +
-      `Use the button below ⤵ or the keyboard menu for quick access.`,
+      `Use the keyboard menu for quick access, or create/join another team.`,
     { reply_markup: MAIN_MENU_KEYBOARD }
   );
+
+  // Follow-up with create/join web_app buttons (reply keyboard can't mix them).
+  await ctx.reply("Need another team?", { reply_markup: createJoinKeyboard });
 }

@@ -41,6 +41,7 @@ async function getUserRole(c: any, teamId: string): Promise<string> {
 }
 
 teamRoutes.get("/team", async (c) => {
+  const teams = c.get("teams") ?? [];
   const teamId = await resolveTeamId(c);
   if (!teamId) {
     return c.render(<TeamPage
@@ -48,8 +49,9 @@ teamRoutes.get("/team", async (c) => {
       userRole="member"
       memberCount={0}
       pendingRequestCount={0}
+      teams={teams}
       ctx={c.req.query("ctx")}
-      error="You are not a member of any team. Use /start in the bot to get started."
+      error="You are not a member of any team. Create or join one below."
     />);
   }
 
@@ -63,6 +65,7 @@ teamRoutes.get("/team", async (c) => {
       userRole={userRole}
       memberCount={data.memberCount}
       pendingRequestCount={data.pendingRequestCount}
+      teams={teams}
       ctx={c.req.query("ctx")}
     />);
   } catch (err) {
@@ -72,6 +75,7 @@ teamRoutes.get("/team", async (c) => {
       userRole={userRole}
       memberCount={0}
       pendingRequestCount={0}
+      teams={teams}
       ctx={c.req.query("ctx")}
       error={errorMsg}
     />);
