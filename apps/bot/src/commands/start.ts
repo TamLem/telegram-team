@@ -17,7 +17,7 @@ export async function startCommand(ctx: BotContext): Promise<void> {
   if (!chatId) return;
 
   const apiUser = await syncUser(from);
-  const teams = await getActiveTeams(apiUser.id);
+  const { teams } = await getActiveTeams(apiUser.id);
 
   if (teams.length === 0) {
     const firstName = escapeHtml(from.first_name);

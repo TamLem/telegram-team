@@ -72,12 +72,18 @@ export interface UserResponse {
 }
 
 export interface UserTeamsResponse {
-  teams: Team[];
+  teams: (Team & { role?: string })[];
+  preferredTeamId: string | null;
 }
 
 export interface MeResponse {
   user: User;
   teams: Team[];
+  preferredTeamId: string | null;
+}
+
+export interface SetPreferredTeamDto {
+  teamId: string;
 }
 
 export interface ApiError {

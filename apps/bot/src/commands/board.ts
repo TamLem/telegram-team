@@ -1,9 +1,18 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { syncUser, getActiveTeams, getBoardSummary } from "../apiClient.js";
+import { syncUser, getBoardSummary } from "../apiClient.js";
 import { buildBoardButton } from "../telegram/miniAppButtons.js";
+import { escapeHtml } from "../telegram/html.js";
+import {
+  loadUserTeams,
+  resolveCommandTeam,
+  appendSwitchRow,
+} from "../teamContext.js";
 
-export async function boardCommand(ctx: BotContext): Promise<void> {
+export async function boardCommand(
+  ctx: BotContext,
+  options?: { teamId?: string }
+): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
@@ -11,7 +20,7 @@ export async function boardCommand(ctx: BotContext): Promise<void> {
   if (!chatId) return;
 
   const apiUser = await syncUser(from);
-  const teams = await getActiveTeams(apiUser.id);
+  const { teams, preferredTeamId } = await loadUserTeams(apiUser.id);
 
   if (teams.length === 0) {
     await ctx.reply(
@@ -20,11 +29,20 @@ export async function boardCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const team = teams[0];
+  const team =
+    (options?.teamId
+      ? teams.find((t) => t.id === options.teamId)
+      : null) ?? resolveCommandTeam(teams, preferredTeamId);
+
+  if (!team) {
+    await ctx.reply("No team available.");
+    return;
+  }
+
   const summary = await getBoardSummary(team.id, apiUser.id);
 
   const lines: string[] = [
-    `<b>Team Board: ${team.name}</b>`,
+    `<b>Team Board: ${escapeHtml(team.name)}</b>`,
     "",
     `Todo: ${summary.todo}`,
     `Doing: ${summary.doing}`,
@@ -50,9 +68,10 @@ export async function boardCommand(ctx: BotContext): Promise<void> {
     returnChatId: chatId,
   };
 
-  const keyboard: InlineKeyboardMarkup = {
+  let keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [[buildBoardButton(params)]],
   };
+  keyboard = appendSwitchRow(keyboard, "board", teams.length > 1);
 
   await ctx.reply(lines.join("\n"), { reply_markup: keyboard });
 }

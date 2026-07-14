@@ -11,6 +11,7 @@ services:
       API_PORT: "3001"
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:?INTERNAL_API_KEY is required}
       MINIAPP_CONTEXT_SECRET: ${MINIAPP_CONTEXT_SECRET:?MINIAPP_CONTEXT_SECRET is required}
+      # Path inside the container (host dir is bind-mounted at /app/data)
       DATABASE_URL: ${DATABASE_URL:-/app/data/app.db}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3001/ready"]
@@ -19,7 +20,8 @@ services:
       retries: 3
       start_period: 10s
     volumes:
-      - db-data:/app/data
+      # Host directory (default ./data). Override with SQLITE_HOST_PATH on the VPS.
+      - ${SQLITE_HOST_PATH:-./data}:/app/data
     networks:
       - internal
 
@@ -77,9 +79,6 @@ services:
         condition: service_healthy
     networks:
       - internal
-
-volumes:
-  db-data:
 
 networks:
   internal:

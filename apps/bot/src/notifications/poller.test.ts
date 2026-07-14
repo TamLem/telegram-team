@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { TelegramApiError } from "@telegram-team/bot-engine";
 
 process.env.MINIAPP_BASE_URL = "https://taskpi.example.com";
 process.env.API_BASE_URL = "http://api:3001";
@@ -9,6 +10,7 @@ const {
   buildMembershipActionButtons,
   formatMessage,
   isMembershipReadyEvent,
+  isPermanentDeliveryFailure,
 } = await import("./poller.js");
 
 test("approved joins are treated as membership-ready events", () => {
@@ -41,4 +43,38 @@ test("approved join confirmation explains the newly available menus", () => {
   assert.match(message, /keyboard below/);
   assert.match(message, /Operations &amp; Support/);
   assert.match(message, /Admin &lt;One&gt;/);
+});
+
+test("permanent delivery failures include blocked users and missing chats", () => {
+  assert.equal(
+    isPermanentDeliveryFailure(
+      new TelegramApiError("blocked", {
+        method: "sendMessage",
+        errorCode: 403,
+        description: "Forbidden: bot was blocked by the user",
+      })
+    ),
+    true
+  );
+  assert.equal(
+    isPermanentDeliveryFailure(
+      new TelegramApiError("missing", {
+        method: "sendMessage",
+        errorCode: 400,
+        description: "Bad Request: chat not found",
+      })
+    ),
+    true
+  );
+  assert.equal(
+    isPermanentDeliveryFailure(
+      new TelegramApiError("rate", {
+        method: "sendMessage",
+        errorCode: 429,
+        description: "Too Many Requests",
+      })
+    ),
+    false
+  );
+  assert.equal(isPermanentDeliveryFailure(new Error("network blip")), false);
 });

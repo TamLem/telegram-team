@@ -460,6 +460,21 @@ body {
 }
 .team-picker-actions .btn { flex: 1; }
 
+.miniapp-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.miniapp-nav-team {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tg-theme-link-color, #3390ec);
+  text-decoration: none;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .miniapp-nav {
   display: flex;
   justify-content: space-between;

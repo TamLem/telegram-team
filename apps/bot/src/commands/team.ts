@@ -1,6 +1,6 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { syncUser, getActiveTeams } from "../apiClient.js";
+import { syncUser } from "../apiClient.js";
 import {
   buildOpenTeamButton,
   buildOpenMembersButton,
@@ -8,8 +8,17 @@ import {
   buildCreateTeamButton,
   buildJoinTeamButton,
 } from "../telegram/miniAppButtons.js";
+import { escapeHtml } from "../telegram/html.js";
+import {
+  loadUserTeams,
+  resolveCommandTeam,
+  appendSwitchRow,
+} from "../teamContext.js";
 
-export async function teamCommand(ctx: BotContext): Promise<void> {
+export async function teamCommand(
+  ctx: BotContext,
+  options?: { teamId?: string }
+): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
@@ -17,7 +26,7 @@ export async function teamCommand(ctx: BotContext): Promise<void> {
   if (!chatId) return;
 
   const apiUser = await syncUser(from);
-  const teams = await getActiveTeams(apiUser.id);
+  const { teams, preferredTeamId } = await loadUserTeams(apiUser.id);
 
   if (teams.length === 0) {
     const params = { telegramUserId: from.id, returnChatId: chatId };
@@ -34,15 +43,32 @@ export async function teamCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const team = teams[0];
-  const params = { telegramUserId: from.id, teamId: team.id, returnChatId: chatId };
-  const keyboard: InlineKeyboardMarkup = {
+  const team =
+    (options?.teamId
+      ? teams.find((t) => t.id === options.teamId)
+      : null) ?? resolveCommandTeam(teams, preferredTeamId);
+
+  if (!team) {
+    await ctx.reply("No team available.");
+    return;
+  }
+
+  const params = {
+    telegramUserId: from.id,
+    teamId: team.id,
+    returnChatId: chatId,
+  };
+  let keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [
       [buildOpenTeamButton(params)],
       [buildOpenMembersButton(params)],
       [buildBoardButton(params)],
     ],
   };
+  keyboard = appendSwitchRow(keyboard, "team", teams.length > 1);
 
-  await ctx.reply(`${team.name}\n\nOpen your team workspace.`, { reply_markup: keyboard });
+  await ctx.reply(
+    `<b>${escapeHtml(team.name)}</b>\n\nOpen your team workspace.`,
+    { reply_markup: keyboard }
+  );
 }

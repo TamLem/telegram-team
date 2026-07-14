@@ -98,6 +98,19 @@ Use this checklist to manually verify TaskPi end-to-end before release.
 - [ ] `/mytasks` → task summary
 - [ ] `/board` → board summary
 - [ ] `/blocked` → blocked tasks list
+
+## Multi-team
+
+- [ ] User can create a second team while already a member of one
+- [ ] User can join a second team (approve flow) and see both on `/start`
+- [ ] Mini App launch with preferred team opens that board
+- [ ] Mini App team switcher (`/app/teams`) updates preferred team
+- [ ] Cross-team **My Tasks** (`/app/my-tasks` and bot menu) shows tasks labeled by team
+- [ ] Board / New Task operate on preferred or selected team (not silent first membership)
+- [ ] Bot **Switch team** callback changes preferred team and re-runs the command
+- [ ] Task notification includes team name; deep link opens correct team
+- [ ] Opening a task from bot uses task’s teamId (not first membership)
+- [ ] `POST /api/tasks` without `X-Team-Id` returns 400
 - [ ] `/team` → team overview link
 - [ ] `/members` → members list link
 - [ ] `/invite` → invite management link

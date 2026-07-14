@@ -4,6 +4,7 @@ export interface User {
   telegramUsername: string | null;
   firstName: string;
   lastName: string | null;
+  preferredTeamId?: string | null;
   createdAt: string;
   updatedAt: string;
   lastSeenAt: string;

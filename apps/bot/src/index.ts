@@ -148,10 +148,15 @@ async function main() {
     const webhookSecret = getEnvOptional("BOT_WEBHOOK_SECRET");
     const port = parseInt(getEnv("BOT_PORT", getEnv("PORT", "3000")));
     const publicUrl = getEnvOptional("BOT_WEBHOOK_URL");
+    const handlerTimeoutMs = parsePositiveIntegerEnv(
+      "BOT_HANDLER_TIMEOUT_MS",
+      25_000,
+    );
 
     const app = createWebhookApp(bot, {
       secretToken: webhookSecret,
       path: "/telegram/webhook",
+      handlerTimeoutMs,
     });
 
     if (publicUrl) {

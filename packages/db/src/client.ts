@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_username TEXT,
   first_name TEXT NOT NULL,
   last_name TEXT,
+  preferred_team_id TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
   last_seen_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -101,6 +102,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_team_join_requests_active_pending
   ON team_join_requests(team_id, user_id)
   WHERE status = 'pending';
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_team_user
+  ON team_members(team_id, user_id);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   task_id TEXT REFERENCES tasks(id),
@@ -135,6 +139,18 @@ function migrateDb(sqlite: Database.Database): void {
     sqlite.exec("ALTER TABLE tasks ADD COLUMN last_reminded_at TEXT");
   } catch {
     // column already exists (or table not yet created — safe to ignore)
+  }
+  try {
+    sqlite.exec("ALTER TABLE users ADD COLUMN preferred_team_id TEXT");
+  } catch {
+    // column already exists
+  }
+  try {
+    sqlite.exec(
+      "CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_team_user ON team_members(team_id, user_id)"
+    );
+  } catch {
+    // index may already exist or duplicates prevent creation
   }
 }
 

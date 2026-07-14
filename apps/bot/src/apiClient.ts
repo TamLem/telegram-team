@@ -1,20 +1,24 @@
 import { getEnv } from "@telegram-team/config";
 import { generateId } from "@telegram-team/shared";
+import { fetchWithTimeout } from "./http.js";
 import { log } from "./logger.js";
 
 const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
+const DEFAULT_TIMEOUT_MS = 10_000;
 
 export async function apiFetch<T>(
   path: string,
-  options?: RequestInit
+  options?: RequestInit & { timeoutMs?: number }
 ): Promise<T> {
   const requestId = generateId();
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, ...init } = options ?? {};
+  const res = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+    ...init,
+    timeoutMs,
     headers: {
       "Content-Type": "application/json",
       "X-Request-Id": requestId,
-      ...options?.headers,
+      ...init.headers,
     },
   });
   if (!res.ok) {
@@ -45,24 +49,106 @@ export async function syncUser(user: {
   return apiUser;
 }
 
-export async function getActiveTeams(
-  userId: string
-): Promise<
-  Array<{ id: string; name: string; inviteCode: string; role: string }>
-> {
+export interface ActiveTeam {
+  id: string;
+  name: string;
+  inviteCode: string;
+  role: string;
+}
+
+export async function getActiveTeams(userId: string): Promise<{
+  teams: ActiveTeam[];
+  preferredTeamId: string | null;
+}> {
   try {
-    const { teams } = await apiFetch<{
-      teams: Array<{
-        id: string;
-        name: string;
-        inviteCode: string;
-        role: string;
-      }>;
+    const res = await apiFetch<{
+      teams: ActiveTeam[];
+      preferredTeamId: string | null;
     }>(`/api/me/teams`, { headers: { "X-User-Id": userId } });
-    return teams;
+    return {
+      teams: res.teams,
+      preferredTeamId: res.preferredTeamId ?? null,
+    };
   } catch (err) {
     log.error("[apiClient] getActiveTeams failed", err);
-    return [];
+    return { teams: [], preferredTeamId: null };
+  }
+}
+
+export async function setPreferredTeam(
+  userId: string,
+  teamId: string
+): Promise<string> {
+  const res = await apiFetch<{ preferredTeamId: string }>(
+    `/api/me/preferred-team`,
+    {
+      method: "PUT",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ teamId }),
+    }
+  );
+  return res.preferredTeamId;
+}
+
+export async function getPreferredTeamId(
+  userId: string
+): Promise<string | null> {
+  const { preferredTeamId } = await getActiveTeams(userId);
+  return preferredTeamId;
+}
+
+export async function getTaskForUser(
+  taskId: string,
+  userId: string
+): Promise<TaskItem | null> {
+  try {
+    const res = await apiFetch<{ task: TaskItem }>(`/api/tasks/${taskId}`, {
+      headers: { "X-User-Id": userId },
+    });
+    return res.task;
+  } catch (err) {
+    log.error("[apiClient] getTaskForUser failed", err);
+    return null;
+  }
+}
+
+export interface CrossTeamTaskSummary {
+  total: number;
+  todo: number;
+  doing: number;
+  blocked: number;
+  done: number;
+  cancelled: number;
+  byTeam: Array<{
+    teamId: string;
+    teamName: string;
+    total: number;
+    todo: number;
+    doing: number;
+    blocked: number;
+  }>;
+  tasks: Array<TaskItem & { teamName?: string | null }>;
+}
+
+export async function getCrossTeamTaskSummary(
+  userId: string
+): Promise<CrossTeamTaskSummary> {
+  try {
+    return await apiFetch<CrossTeamTaskSummary>(`/api/me/task-summary`, {
+      headers: { "X-User-Id": userId },
+    });
+  } catch (err) {
+    log.error("[apiClient] getCrossTeamTaskSummary failed", err);
+    return {
+      total: 0,
+      todo: 0,
+      doing: 0,
+      blocked: 0,
+      done: 0,
+      cancelled: 0,
+      byTeam: [],
+      tasks: [],
+    };
   }
 }
 

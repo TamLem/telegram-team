@@ -1,7 +1,7 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
 import { getEnv } from "@telegram-team/config";
-import { syncUser, getActiveTeams } from "../apiClient.js";
+import { syncUser, getTaskForUser } from "../apiClient.js";
 import { miniAppContextUrl } from "../telegram/webApp.js";
 
 const MINIAPP_BASE_URL = getEnv("MINIAPP_BASE_URL", "http://localhost:3002");
@@ -33,15 +33,15 @@ export async function taskCallback(
 
   if (action === "open") {
     const apiUser = await syncUser(from);
-    const teams = await getActiveTeams(apiUser.id);
-    if (teams.length === 0) {
-      await ctx.answerCallbackQuery("No team found");
+    const task = await getTaskForUser(taskId, apiUser.id);
+    if (!task) {
+      await ctx.answerCallbackQuery("Task not found");
       return;
     }
     const url = miniAppContextUrl(MINIAPP_BASE_URL, {
       action: "view_task",
       telegramUserId: from.id,
-      teamId: teams[0].id,
+      teamId: task.teamId,
       returnChatId: chatId,
       taskId,
     });

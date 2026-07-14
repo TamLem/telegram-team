@@ -10,6 +10,7 @@ import { membersCommand } from "./commands/members.js";
 import { inviteCommand } from "./commands/invite.js";
 import { taskCallback } from "./callbacks/task.js";
 import { onboardingCallback } from "./callbacks/onboarding.js";
+import { teamSelectCallback } from "./callbacks/teamSelect.js";
 import { menuMessageHandler } from "./menu.js";
 
 export const BOT_COMMANDS: BotCommand[] = [
@@ -35,4 +36,5 @@ export function registerBotInteractions(bot: Bot): void {
 
   bot.callback(/^onboard:/, onboardingCallback);
   bot.callback(/^task:/, taskCallback);
+  bot.callback(/^team:(select|switch):/, teamSelectCallback);
 }

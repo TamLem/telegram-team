@@ -1,10 +1,19 @@
 import { getDb } from "@telegram-team/db";
-import { tasks, taskComments, taskEvents, notifications, users as usersTable } from "@telegram-team/db";
-import { eq, desc, and, inArray, lt, isNull, isNotNull, ne, or } from "drizzle-orm";
+import {
+  tasks,
+  taskComments,
+  taskEvents,
+  notifications,
+  users as usersTable,
+  teams as teamsTable,
+} from "@telegram-team/db";
+import { eq, desc, and, inArray, lt, isNull, isNotNull, ne, or, sql } from "drizzle-orm";
 import { generateId, TaskStatus, TaskEventType } from "@telegram-team/shared";
 import type { Task, TaskComment, TaskEvent, NotificationPayload } from "@telegram-team/shared";
 import { createNotification } from "./notification.service.js";
 import { recordTaskEvent } from "./events.service.js";
+
+export type TaskWithTeam = Task & { teamName?: string | null };
 
 async function getUserName(userId: string): Promise<string> {
   const db = getDb();
@@ -14,6 +23,16 @@ async function getUserName(userId: string): Promise<string> {
     .where(eq(usersTable.id, userId))
     .limit(1);
   return user?.firstName ?? "Someone";
+}
+
+async function getTeamName(teamId: string): Promise<string | null> {
+  const db = getDb();
+  const [team] = await db
+    .select({ name: teamsTable.name })
+    .from(teamsTable)
+    .where(eq(teamsTable.id, teamId))
+    .limit(1);
+  return team?.name ?? null;
 }
 
 export async function createTask(input: {
@@ -66,6 +85,7 @@ export async function createTask(input: {
     actorName,
     taskId: id,
     teamId: input.teamId,
+    teamName: (await getTeamName(input.teamId)) ?? undefined,
     dueAt: input.dueAt ?? null,
   };
 
@@ -104,18 +124,26 @@ export async function getTaskById(id: string): Promise<Task | undefined> {
 
 export async function listTasks(params: {
   teamId?: string;
+  /** When set (and teamId omitted), restrict to these team ids. Empty → no rows. */
+  teamIds?: string[];
   assignedToUserId?: string;
   createdById?: string;
   status?: string;
   priority?: string;
   limit?: number;
   offset?: number;
-}): Promise<{ tasks: Task[]; total: number }> {
+  includeTeamName?: boolean;
+}): Promise<{ tasks: TaskWithTeam[]; total: number }> {
   const db = getDb();
   const conditions = [];
 
   if (params.teamId) {
     conditions.push(eq(tasks.teamId, params.teamId));
+  } else if (params.teamIds) {
+    if (params.teamIds.length === 0) {
+      return { tasks: [], total: 0 };
+    }
+    conditions.push(inArray(tasks.teamId, params.teamIds));
   }
   if (params.assignedToUserId) {
     conditions.push(eq(tasks.assignedToUserId, params.assignedToUserId));
@@ -135,6 +163,33 @@ export async function listTasks(params: {
   const limit = params.limit ?? 20;
   const offset = params.offset ?? 0;
 
+  if (params.includeTeamName) {
+    const result = await db
+      .select({
+        task: tasks,
+        teamName: teamsTable.name,
+      })
+      .from(tasks)
+      .leftJoin(teamsTable, eq(tasks.teamId, teamsTable.id))
+      .where(where)
+      .orderBy(desc(tasks.updatedAt))
+      .limit(limit)
+      .offset(offset);
+
+    const countResult = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(tasks)
+      .where(where);
+
+    return {
+      tasks: result.map(({ task, teamName }) => ({
+        ...task,
+        teamName: teamName ?? null,
+      })),
+      total: Number(countResult[0]?.count ?? 0),
+    };
+  }
+
   const result = await db
     .select()
     .from(tasks)
@@ -144,14 +199,120 @@ export async function listTasks(params: {
     .offset(offset);
 
   const countResult = await db
-    .select({ count: tasks.id })
+    .select({ count: sql<number>`count(*)` })
     .from(tasks)
     .where(where);
 
   return {
     tasks: result,
-    total: countResult.length,
+    total: Number(countResult[0]?.count ?? 0),
   };
+}
+
+export async function getMyTaskSummary(
+  userId: string,
+  teamIds: string[]
+): Promise<{
+  total: number;
+  todo: number;
+  doing: number;
+  blocked: number;
+  done: number;
+  cancelled: number;
+  byTeam: Array<{
+    teamId: string;
+    teamName: string;
+    total: number;
+    todo: number;
+    doing: number;
+    blocked: number;
+  }>;
+  tasks: TaskWithTeam[];
+}> {
+  if (teamIds.length === 0) {
+    return {
+      total: 0,
+      todo: 0,
+      doing: 0,
+      blocked: 0,
+      done: 0,
+      cancelled: 0,
+      byTeam: [],
+      tasks: [],
+    };
+  }
+
+  const { tasks: myTasks } = await listTasks({
+    teamIds,
+    assignedToUserId: userId,
+    limit: 100,
+    offset: 0,
+    includeTeamName: true,
+  });
+
+  const openStatuses = new Set(["todo", "doing", "blocked"]);
+  const summary = {
+    total: myTasks.length,
+    todo: 0,
+    doing: 0,
+    blocked: 0,
+    done: 0,
+    cancelled: 0,
+    byTeam: [] as Array<{
+      teamId: string;
+      teamName: string;
+      total: number;
+      todo: number;
+      doing: number;
+      blocked: number;
+    }>,
+    tasks: myTasks.filter((t) => openStatuses.has(t.status)),
+  };
+
+  const byTeamMap = new Map<
+    string,
+    {
+      teamId: string;
+      teamName: string;
+      total: number;
+      todo: number;
+      doing: number;
+      blocked: number;
+    }
+  >();
+
+  for (const t of myTasks) {
+    if (t.status === "todo") summary.todo++;
+    else if (t.status === "doing") summary.doing++;
+    else if (t.status === "blocked") summary.blocked++;
+    else if (t.status === "done") summary.done++;
+    else if (t.status === "cancelled") summary.cancelled++;
+
+    if (!openStatuses.has(t.status)) continue;
+
+    let entry = byTeamMap.get(t.teamId);
+    if (!entry) {
+      entry = {
+        teamId: t.teamId,
+        teamName: t.teamName ?? "Team",
+        total: 0,
+        todo: 0,
+        doing: 0,
+        blocked: 0,
+      };
+      byTeamMap.set(t.teamId, entry);
+    }
+    entry.total++;
+    if (t.status === "todo") entry.todo++;
+    else if (t.status === "doing") entry.doing++;
+    else if (t.status === "blocked") entry.blocked++;
+  }
+
+  summary.byTeam = Array.from(byTeamMap.values()).sort((a, b) =>
+    a.teamName.localeCompare(b.teamName)
+  );
+
+  return summary;
 }
 
 export async function listMyTasks(userId: string, teamIds: string[]): Promise<Task[]> {
@@ -419,6 +580,7 @@ export async function updateTask(
       actorName,
       taskId: id,
       teamId: existing.teamId,
+      teamName: (await getTeamName(existing.teamId)) ?? undefined,
     };
 
     const eventType = input.status === TaskStatus.BLOCKED
@@ -462,6 +624,7 @@ export async function updateTask(
       actorName,
       taskId: id,
       teamId: existing.teamId,
+      teamName: (await getTeamName(existing.teamId)) ?? undefined,
       taskPriority: existing.priority,
       dueAt: existing.dueAt ?? null,
     };
@@ -531,6 +694,7 @@ export async function addTaskComment(input: {
     commentBody: input.body,
     taskId: input.taskId,
     teamId: input.teamId,
+    teamName: (await getTeamName(input.teamId)) ?? undefined,
   };
 
   const task = await getTaskById(input.taskId);
@@ -636,6 +800,7 @@ export async function processDeadlineAlerts(): Promise<{
       assigneeName: actorName,
       taskId: task.id,
       teamId: task.teamId,
+      teamName: (await getTeamName(task.teamId)) ?? undefined,
       dueAt: task.dueAt,
     };
 
@@ -679,6 +844,7 @@ export async function notifyAssignee(
     actorName,
     taskId: task.id,
     teamId: task.teamId,
+    teamName: (await getTeamName(task.teamId)) ?? undefined,
     dueAt: task.dueAt ?? null,
   };
 

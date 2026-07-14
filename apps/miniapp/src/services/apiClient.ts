@@ -39,6 +39,7 @@ export interface TaskResponse {
   updatedAt: string;
   completedAt: string | null;
   cancelledAt: string | null;
+  teamName?: string | null;
 }
 
 export interface CommentResponse {
@@ -127,12 +128,33 @@ export async function getOrCreateUser(telegramId: number, data: {
   return res.user;
 }
 
-export async function getUserTeams(userId: string) {
-  const res = await apiFetch<{ teams: (TeamResponse & { role: string })[] }>(
-    "/api/me/teams",
-    { headers: { "X-User-Id": userId } }
+export async function getUserTeams(userId: string): Promise<{
+  teams: (TeamResponse & { role: string })[];
+  preferredTeamId: string | null;
+}> {
+  const res = await apiFetch<{
+    teams: (TeamResponse & { role: string })[];
+    preferredTeamId: string | null;
+  }>("/api/me/teams", { headers: { "X-User-Id": userId } });
+  return {
+    teams: res.teams,
+    preferredTeamId: res.preferredTeamId ?? null,
+  };
+}
+
+export async function setPreferredTeam(
+  userId: string,
+  teamId: string
+): Promise<string> {
+  const res = await apiFetch<{ preferredTeamId: string }>(
+    "/api/me/preferred-team",
+    {
+      method: "PUT",
+      headers: { "X-User-Id": userId },
+      body: JSON.stringify({ teamId }),
+    }
   );
-  return res.teams;
+  return res.preferredTeamId;
 }
 
 export async function createTeam(userId: string, name: string): Promise<TeamResponse> {

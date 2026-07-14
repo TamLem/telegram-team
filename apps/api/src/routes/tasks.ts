@@ -15,6 +15,7 @@ import {
   createTask,
   getTaskById,
   listTasks,
+  getMyTaskSummary,
   updateTask,
   updateTaskStatus,
   assignTask,
@@ -53,14 +54,18 @@ tasksRouter.get("/tasks", zValidator("query", paginationSchema), async (c) => {
     return c.json({ error: "You are not a member of this team" }, 403);
   }
 
+  const includeTeamName = !teamId || assignedTo === "me";
+
   const result = await listTasks({
     teamId: teamId ?? undefined,
+    teamIds: teamId ? undefined : userTeamIds,
     assignedToUserId: assignedTo === "me" ? userId : undefined,
     createdById: createdBy === "me" ? userId : undefined,
     status: status ?? undefined,
     priority: priority ?? undefined,
     limit,
     offset,
+    includeTeamName,
   });
 
   return c.json({
@@ -71,6 +76,18 @@ tasksRouter.get("/tasks", zValidator("query", paginationSchema), async (c) => {
   });
 });
 
+tasksRouter.get("/me/task-summary", async (c) => {
+  const userId = getUserId(c);
+  if (!userId) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
+
+  const memberships = await getUserActiveMemberships(userId);
+  const teamIds = memberships.map((m) => m.teamId);
+  const summary = await getMyTaskSummary(userId, teamIds);
+  return c.json(summary);
+});
+
 tasksRouter.post("/tasks", zValidator("json", createTaskSchema), async (c) => {
   const body = c.req.valid("json");
   const userId = getUserId(c);
@@ -79,35 +96,21 @@ tasksRouter.post("/tasks", zValidator("json", createTaskSchema), async (c) => {
   }
 
   const teamId = c.req.header("X-Team-Id");
-  if (teamId) {
-    const member = await getTeamMember(teamId, userId);
-    if (!member) {
-      return c.json({ error: "You are not a member of this team" }, 403);
-    }
-
-    const task = await createTask({
-      title: body.title,
-      teamId,
-      createdById: userId,
-      description: body.description,
-      priority: body.priority,
-      assignedToUserId: body.assignedToUserId,
-      dueAt: body.dueAt,
-    });
-
-    return c.json({ task }, 201);
+  if (!teamId) {
+    return c.json(
+      { error: "X-Team-Id header is required to create a task" },
+      400
+    );
   }
 
-  const memberships = await getUserActiveMemberships(userId);
-  if (memberships.length === 0) {
-    return c.json({ error: "You are not a member of any team" }, 403);
+  const member = await getTeamMember(teamId, userId);
+  if (!member) {
+    return c.json({ error: "You are not a member of this team" }, 403);
   }
-
-  const defaultTeamId = memberships[0].teamId;
 
   const task = await createTask({
     title: body.title,
-    teamId: defaultTeamId,
+    teamId,
     createdById: userId,
     description: body.description,
     priority: body.priority,

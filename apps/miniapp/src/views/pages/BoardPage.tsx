@@ -48,6 +48,8 @@ function buildMemberMap(members: TeamMemberResponse[]): Record<string, string> {
 
 export const BoardPage: FC<{
   teamId: string;
+  teamName?: string;
+  teams?: Array<{ id: string; name: string; role: string }>;
   columns: BoardColumn[];
   filterStatus?: string | null;
   filterAssignee?: string | null;
@@ -55,7 +57,17 @@ export const BoardPage: FC<{
   members?: TeamMemberResponse[];
   currentUserId?: string;
   ctx?: string;
-}> = ({ teamId, columns, filterStatus, filterAssignee, filterPriority, members = [], currentUserId = "" }) => {
+}> = ({
+  teamId,
+  teamName,
+  teams = [],
+  columns,
+  filterStatus,
+  filterAssignee,
+  filterPriority,
+  members = [],
+  currentUserId = "",
+}) => {
   const memberMap = buildMemberMap(members);
 
   const filteredColumns = columns.map((col) => {
@@ -72,10 +84,18 @@ export const BoardPage: FC<{
 
   return (
     <div>
-      <MiniAppNav teamId={teamId} current="board" />
+      <MiniAppNav
+        teamId={teamId}
+        teamName={teamName}
+        teams={teams}
+        current="board"
+      />
 
       <div class="header">
-        <h1>{filterAssignee === "me" ? "My Tasks" : "Task Board"}</h1>
+        <h1>
+          {filterAssignee === "me" ? "My Tasks" : "Task Board"}
+          {teamName ? ` · ${teamName}` : ""}
+        </h1>
       </div>
 
       {/* Filters row */}

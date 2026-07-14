@@ -7,6 +7,7 @@ export const users = sqliteTable("users", {
   telegramUsername: text("telegram_username"),
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
+  preferredTeamId: text("preferred_team_id"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

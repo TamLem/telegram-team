@@ -22,15 +22,17 @@ export async function onboardingCallback(
 
   if (action === "newtask") {
     const apiUser = await syncUser(from);
-    const teams = await getActiveTeams(apiUser.id);
+    const { teams, preferredTeamId } = await getActiveTeams(apiUser.id);
     if (teams.length === 0) {
       await ctx.answerCallbackQuery("Create a team first.");
       return;
     }
+    const team =
+      teams.find((t) => t.id === preferredTeamId) ?? teams[0];
     const url = miniAppContextUrl(MINIAPP_BASE_URL, {
       action: "create_task",
       telegramUserId: from.id,
-      teamId: teams[0].id,
+      teamId: team.id,
       returnChatId: chatId,
     });
     await ctx.reply("Tap below to create a task:", {
@@ -44,12 +46,14 @@ export async function onboardingCallback(
 
   if (action === "board") {
     const apiUser = await syncUser(from);
-    const teams = await getActiveTeams(apiUser.id);
+    const { teams, preferredTeamId } = await getActiveTeams(apiUser.id);
     if (teams.length > 0) {
+      const team =
+        teams.find((t) => t.id === preferredTeamId) ?? teams[0];
       const url = miniAppContextUrl(MINIAPP_BASE_URL, {
         action: "view_board",
         telegramUserId: from.id,
-        teamId: teams[0].id,
+        teamId: team.id,
         returnChatId: chatId,
       });
       await ctx.reply("Tap below to open the board:", {

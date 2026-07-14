@@ -73,7 +73,8 @@ INTERNAL_API_KEY=<generated-hex>
 MINIAPP_CONTEXT_SECRET=<generated-hex>
 BOT_WEBHOOK_SECRET=<generated-hex>
 
-# Database (defaults to /app/data/app.db — persisted via Docker volume)
+# Database: host dir bind-mounted into the API container at /app/data
+# SQLITE_HOST_PATH=/var/lib/taskpi/data
 # DATABASE_URL=/app/data/app.db
 ```
 
@@ -110,7 +111,7 @@ Then click **Redeploy** in Coolify. The Docker build cache speeds up subsequent 
 
 ## What Happens on Startup
 
-1. **API** starts first, auto-creates SQLite tables via `CREATE TABLE IF NOT EXISTS`, listens on port 3001 (internal only)
+1. **API** starts first, opens the host-mounted SQLite file under `/app/data`, auto-creates/migrates tables via `CREATE TABLE IF NOT EXISTS`, listens on port 3001 (internal only)
 2. **Mini App** boots, validates env vars, starts serving SSR pages on port 3002
 3. **Bot** boots, calls `getMe` to verify the token, registers bot commands via `setMyCommands`, calls `setWebhook` to point Telegram at `https://domain/telegram/webhook` (with `BOT_WEBHOOK_SECRET` for header verification), listens on port 3000
 4. **Notification poller** starts inside the bot process, polling the API every 5s for undelivered notifications
@@ -133,7 +134,8 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 | Variable | Purpose | Default |
 |----------|---------|---------|
 | `API_PORT` | HTTP listen port | `3001` |
-| `DATABASE_URL` | SQLite file path | `<workspace>/data/app.db` |
+| `DATABASE_URL` | SQLite path **inside the container** | `/app/data/app.db` |
+| `SQLITE_HOST_PATH` | Host directory bind-mounted to `/app/data` | `./data` |
 
 ### Mini App (`apps/miniapp`)
 
@@ -163,26 +165,57 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 
 ## Database
 
-SQLite file stored at `/app/data/app.db` inside the container, persisted via the `db-data` Docker volume.
+SQLite lives on the **host** and is bind-mounted into the API container:
 
-### Backup
+| Side | Path |
+|------|------|
+| Host | `${SQLITE_HOST_PATH:-./data}` (e.g. `/var/lib/taskpi/data` on a VPS) |
+| Container | `/app/data` → file `DATABASE_URL` (default `/app/data/app.db`) |
 
-```bash
-# While the container is running
-docker compose exec api cp /app/data/app.db /app/data/app.db.backup.$(date +%Y%m%d%H%M%S)
+Set in Coolify/env if you do not want the compose-relative `./data` directory:
+
+```env
+SQLITE_HOST_PATH=/var/lib/taskpi/data
+DATABASE_URL=/app/data/app.db
 ```
 
-Then copy the backup from the volume to the host.
-
-### Restore
+Create the host directory once (owned so Docker can write; often root or the compose user):
 
 ```bash
-# Stop the API first
+sudo mkdir -p /var/lib/taskpi/data
+# if the container runs as root (default Node image), root-owned is fine
+```
+
+### Backup (host)
+
+```bash
+# Prefer a consistent snapshot (install sqlite3 on the host if needed)
+sqlite3 /var/lib/taskpi/data/app.db ".backup /var/lib/taskpi/data/app.db.backup.$(date +%Y%m%d%H%M%S)"
+
+# Or copy while API is stopped
 docker compose stop api
-# Replace the file on the volume
-docker compose run --rm -v ./app.db:/restore.db api cp /restore.db /app/data/app.db
-# Start the API
+cp /var/lib/taskpi/data/app.db /var/lib/taskpi/data/app.db.backup.$(date +%Y%m%d%H%M%S)
 docker compose start api
+```
+
+### Restore (host)
+
+```bash
+docker compose stop api
+cp /path/to/app.db.backup /var/lib/taskpi/data/app.db
+# remove stale WAL if restoring a full backup file from .backup
+rm -f /var/lib/taskpi/data/app.db-wal /var/lib/taskpi/data/app.db-shm
+docker compose start api
+```
+
+### Local introspection via Tailscale
+
+With the DB on the host, you can inspect or edit without entering a named volume:
+
+```bash
+ssh user@vps-tailscale
+sqlite3 /var/lib/taskpi/data/app.db
+# or scp the file / a .backup snapshot to your laptop
 ```
 
 ---

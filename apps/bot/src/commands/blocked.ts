@@ -1,9 +1,21 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { syncUser, getActiveTeams, getBoardSummary } from "../apiClient.js";
-import { buildBlockedTasksButton, buildBoardButton } from "../telegram/miniAppButtons.js";
+import { syncUser, getBoardSummary } from "../apiClient.js";
+import {
+  buildBlockedTasksButton,
+  buildBoardButton,
+} from "../telegram/miniAppButtons.js";
+import { escapeHtml } from "../telegram/html.js";
+import {
+  loadUserTeams,
+  resolveCommandTeam,
+  appendSwitchRow,
+} from "../teamContext.js";
 
-export async function blockedCommand(ctx: BotContext): Promise<void> {
+export async function blockedCommand(
+  ctx: BotContext,
+  options?: { teamId?: string }
+): Promise<void> {
   const from = ctx.from;
   if (!from) return;
 
@@ -11,7 +23,7 @@ export async function blockedCommand(ctx: BotContext): Promise<void> {
   if (!chatId) return;
 
   const apiUser = await syncUser(from);
-  const teams = await getActiveTeams(apiUser.id);
+  const { teams, preferredTeamId } = await loadUserTeams(apiUser.id);
 
   if (teams.length === 0) {
     await ctx.reply(
@@ -20,48 +32,53 @@ export async function blockedCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const team = teams[0];
-  const summary = await getBoardSummary(team.id, apiUser.id);
+  const team =
+    (options?.teamId
+      ? teams.find((t) => t.id === options.teamId)
+      : null) ?? resolveCommandTeam(teams, preferredTeamId);
 
-  if (summary.blocked === 0) {
-    const params = {
-      telegramUserId: from.id,
-      teamId: team.id,
-      returnChatId: chatId,
-    };
-    const keyboard: InlineKeyboardMarkup = {
-      inline_keyboard: [[buildBoardButton(params)]],
-    };
-    await ctx.reply(
-      `<b>Blocked Tasks: 0</b>\n\nNo blocked tasks. The team is moving.\n\nOpen the board to view all tasks.`,
-      { reply_markup: keyboard }
-    );
+  if (!team) {
+    await ctx.reply("No team available.");
     return;
   }
 
-  const lines: string[] = [
-    `<b>Blocked Tasks: ${summary.blocked}</b>`,
-    "",
-  ];
-
-  for (const task of summary.topBlockedTasks.slice(0, 5)) {
-    const assignee = task.assigneeName
-      ? ` — @${task.assigneeName}`
-      : " — Unassigned";
-    lines.push(`${task.title}${assignee}`);
-  }
-
-  lines.push("\nOpen the board to review blockers.");
-
+  const summary = await getBoardSummary(team.id, apiUser.id);
   const params = {
     telegramUserId: from.id,
     teamId: team.id,
     returnChatId: chatId,
   };
 
-  const keyboard: InlineKeyboardMarkup = {
+  if (summary.blocked === 0) {
+    let keyboard: InlineKeyboardMarkup = {
+      inline_keyboard: [[buildBoardButton(params)]],
+    };
+    keyboard = appendSwitchRow(keyboard, "blocked", teams.length > 1);
+    await ctx.reply(
+      `<b>Blocked Tasks: 0</b> · ${escapeHtml(team.name)}\n\nNo blocked tasks. The team is moving.\n\nOpen the board to view all tasks.`,
+      { reply_markup: keyboard }
+    );
+    return;
+  }
+
+  const lines: string[] = [
+    `<b>Blocked Tasks: ${summary.blocked}</b> · ${escapeHtml(team.name)}`,
+    "",
+  ];
+
+  for (const task of summary.topBlockedTasks.slice(0, 5)) {
+    const assignee = task.assigneeName
+      ? ` — @${escapeHtml(task.assigneeName)}`
+      : " — Unassigned";
+    lines.push(`${escapeHtml(task.title)}${assignee}`);
+  }
+
+  lines.push("\nOpen the board to review blockers.");
+
+  let keyboard: InlineKeyboardMarkup = {
     inline_keyboard: [[buildBlockedTasksButton(params)]],
   };
+  keyboard = appendSwitchRow(keyboard, "blocked", teams.length > 1);
 
   await ctx.reply(lines.join("\n"), { reply_markup: keyboard });
 }

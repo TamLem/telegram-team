@@ -1,6 +1,8 @@
 import type { Bot } from "@telegram-team/bot-engine";
+import { TelegramApiError } from "@telegram-team/bot-engine";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { miniAppContextUrl } from "../telegram/webApp.js";
+import { fetchWithTimeout } from "../http.js";
 import { logError } from "../logger.js";
 import { escapeHtml } from "../telegram/html.js";
 import { MAIN_MENU_KEYBOARD } from "../menu.js";
@@ -10,6 +12,9 @@ const API_BASE_URL = getEnv("API_BASE_URL", "http://localhost:3001");
 const INTERNAL_API_KEY = getEnvOptional("INTERNAL_API_KEY") ?? "";
 
 const POLL_INTERVAL_MS = 5_000;
+const INTERNAL_FETCH_TIMEOUT_MS = 10_000;
+/** Max consecutive delivery failures for a single notification before dead-lettering. */
+const MAX_DELIVERY_FAILURES = 5;
 
 interface NotificationItem {
   id: string;
@@ -73,14 +78,19 @@ function formatDueDate(dateString: string | null | undefined): string {
   return dayLabel;
 }
 
+function teamLine(payload: NotificationPayload): string {
+  return payload.teamName ? `\nTeam: ${escapeHtml(payload.teamName)}` : "";
+}
+
 function formatMessage(eventType: string, payload: NotificationPayload): string {
   const title = payload.taskTitle ?? "Unknown task";
+  const team = teamLine(payload);
 
   switch (eventType) {
     case "task_created":
       return (
         `<b>Task created</b>\n\n` +
-        `Task: ${title}\n` +
+        `Task: ${title}${team}\n` +
         `Status: ${STATUS_LABELS[payload.taskStatus ?? ""] ?? payload.taskStatus ?? "Todo"}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? payload.taskPriority ?? "Normal"}\n` +
         `Assignee: ${payload.assigneeName ?? "Unassigned"}`
@@ -89,7 +99,7 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
     case "task_assigned":
       return (
         `<b>Task assigned to you</b>\n\n` +
-        `Task: ${title}\n` +
+        `Task: ${title}${team}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? payload.taskPriority ?? "Normal"}\n` +
         `Due: ${formatDueDate(payload.dueAt)}`
       );
@@ -97,32 +107,35 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
     case "task_status_changed":
       return (
         `<b>Task updated</b>\n\n` +
-        `${title} is now ${STATUS_LABELS[payload.newStatus ?? ""] ?? payload.newStatus ?? "updated"}.`
+        `${title} is now ${STATUS_LABELS[payload.newStatus ?? ""] ?? payload.newStatus ?? "updated"}.` +
+        team
       );
 
     case "task_commented":
       return (
         `<b>New comment on task</b>\n\n` +
-        `Task: ${title}\n` +
+        `Task: ${title}${team}\n` +
         `${payload.actorName ?? "Someone"}: ${payload.commentBody ?? ""}`
       );
 
     case "task_blocked":
       return (
         `<b>Task blocked</b>\n\n` +
-        `<b>${title}</b> is now blocked.`
+        `<b>${title}</b> is now blocked.` +
+        team
       );
 
     case "task_completed":
       return (
         `<b>Task completed</b>\n\n` +
-        `<b>${title}</b> was marked done.`
+        `<b>${title}</b> was marked done.` +
+        team
       );
 
     case "task_overdue":
       return (
         `<b>Task overdue</b>\n\n` +
-        `<b>${title}</b> is past its deadline.\n` +
+        `<b>${title}</b> is past its deadline.${team}\n` +
         `Due: ${formatDueDate(payload.dueAt)}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}`
       );
@@ -130,14 +143,14 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
     case "task_due_soon":
       return (
         `<b>Task due soon</b>\n\n` +
-        `<b>${title}</b> is due ${formatDueDate(payload.dueAt)}.\n` +
+        `<b>${title}</b> is due ${formatDueDate(payload.dueAt)}.${team}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}`
       );
 
     case "assignee_reminded":
       return (
         `<b>Reminder</b>\n\n` +
-        `${payload.actorName ?? "Someone"} reminded you about <b>${title}</b>.\n` +
+        `${payload.actorName ?? "Someone"} reminded you about <b>${title}</b>.${team}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}\n` +
         `Due: ${formatDueDate(payload.dueAt)}`
       );
@@ -283,9 +296,10 @@ function buildMembershipActionButtons(
 }
 
 async function fetchUndelivered(limit = 50): Promise<NotificationItem[]> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `${API_BASE_URL}/api/internal/notifications?limit=${limit}`,
     {
+      timeoutMs: INTERNAL_FETCH_TIMEOUT_MS,
       headers: {
         "X-Internal-API-Key": INTERNAL_API_KEY,
       },
@@ -299,12 +313,41 @@ async function fetchUndelivered(limit = 50): Promise<NotificationItem[]> {
 }
 
 async function markDelivered(id: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/api/internal/notifications/${id}/delivered`, {
-    method: "POST",
-    headers: {
-      "X-Internal-API-Key": INTERNAL_API_KEY,
-    },
-  });
+  const res = await fetchWithTimeout(
+    `${API_BASE_URL}/api/internal/notifications/${id}/delivered`,
+    {
+      method: "POST",
+      timeoutMs: INTERNAL_FETCH_TIMEOUT_MS,
+      headers: {
+        "X-Internal-API-Key": INTERNAL_API_KEY,
+      },
+    }
+  );
+  if (!res.ok) {
+    throw new Error(`Failed to mark notification delivered: ${res.status}`);
+  }
+}
+
+/**
+ * Telegram errors that will never succeed on retry for this chat/user.
+ * Leaving them undelivered causes a permanent retry storm that stalls the bot.
+ */
+export function isPermanentDeliveryFailure(error: unknown): boolean {
+  if (!(error instanceof TelegramApiError)) return false;
+  const code = error.details.errorCode ?? error.details.status;
+  if (code === 403) return true; // bot blocked, user deactivated, etc.
+  if (code === 400) {
+    const desc = (error.details.description ?? "").toLowerCase();
+    return (
+      desc.includes("chat not found") ||
+      desc.includes("user is deactivated") ||
+      desc.includes("bot was blocked") ||
+      desc.includes("peer_id_invalid") ||
+      desc.includes("have no rights") ||
+      desc.includes("chat_id is empty")
+    );
+  }
+  return false;
 }
 
 async function processNotification(
@@ -395,7 +438,7 @@ async function processNotification(
       err instanceof Error ? err : new Error(String(err)),
       { notificationId: notification.id }
     );
-    return;
+    throw err;
   }
 
   if (membershipReady && payload.teamId) {
@@ -413,6 +456,7 @@ async function processNotification(
         }
       );
     } catch (err) {
+      // Primary message already delivered; log and still mark delivered.
       logError(
         `[notifications] failed to send follow-up actions to user ${notification.recipientTelegramUserId}`,
         err instanceof Error ? err : new Error(String(err)),
@@ -434,6 +478,9 @@ export class NotificationPoller {
   private bot: Bot;
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  /** Prevents setInterval from stacking concurrent poll passes. */
+  private inFlight = false;
+  private deliveryFailures = new Map<string, number>();
 
   constructor(bot: Bot) {
     this.bot = bot;
@@ -449,9 +496,11 @@ export class NotificationPoller {
 
     console.log("[notifications] poller started");
     this.running = true;
-    this.timer = setInterval(() => this.poll(), POLL_INTERVAL_MS);
+    this.timer = setInterval(() => {
+      void this.poll();
+    }, POLL_INTERVAL_MS);
 
-    this.poll();
+    void this.poll();
   }
 
   stop(): void {
@@ -464,19 +513,46 @@ export class NotificationPoller {
   }
 
   private async poll(): Promise<void> {
-    if (!this.running) return;
+    if (!this.running || this.inFlight) return;
+    this.inFlight = true;
 
     try {
       const notifications = await fetchUndelivered(50);
 
       for (const notification of notifications) {
+        if (!this.running) break;
         try {
           await processNotification(this.bot, notification);
+          this.deliveryFailures.delete(notification.id);
         } catch (err) {
+          const failures =
+            (this.deliveryFailures.get(notification.id) ?? 0) + 1;
+          this.deliveryFailures.set(notification.id, failures);
+
           logError(
             `[notifications] error processing notification ${notification.id}`,
-            err instanceof Error ? err : new Error(String(err))
+            err instanceof Error ? err : new Error(String(err)),
+            { failures, maxDeliveryFailures: MAX_DELIVERY_FAILURES }
           );
+
+          const permanent = isPermanentDeliveryFailure(err);
+          if (permanent || failures >= MAX_DELIVERY_FAILURES) {
+            console.error(
+              `[notifications] dead-lettering notification ${notification.id}` +
+                (permanent
+                  ? " (permanent Telegram delivery failure)"
+                  : ` after ${failures} failures`)
+            );
+            try {
+              await markDelivered(notification.id);
+              this.deliveryFailures.delete(notification.id);
+            } catch (markErr) {
+              logError(
+                `[notifications] failed to dead-letter ${notification.id}`,
+                markErr instanceof Error ? markErr : new Error(String(markErr))
+              );
+            }
+          }
         }
       }
     } catch (err) {
@@ -484,6 +560,8 @@ export class NotificationPoller {
         "[notifications] poll error",
         err instanceof Error ? err : new Error(String(err))
       );
+    } finally {
+      this.inFlight = false;
     }
   }
 }

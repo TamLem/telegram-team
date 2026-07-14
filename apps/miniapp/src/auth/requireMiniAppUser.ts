@@ -17,6 +17,7 @@ export interface AppVariables {
   apiUser: { id: string };
   ctx?: MiniAppContext;
   teams: Array<{ id: string; name: string; role: string }>;
+  preferredTeamId?: string | null;
   activeTeamId?: string;
 }
 
@@ -147,11 +148,13 @@ async function attachTelegramUser(c: any, telegramUser: TelegramUser) {
   c.set("apiUser", { id: apiUser.id });
 
   try {
-    const teams = await getUserTeams(apiUser.id);
+    const { teams, preferredTeamId } = await getUserTeams(apiUser.id);
     c.set("teams", teams);
+    c.set("preferredTeamId", preferredTeamId);
   } catch (err) {
     log.error("[attachUser] getUserTeams failed", err, { userId: apiUser.id });
     c.set("teams", []);
+    c.set("preferredTeamId", null);
   }
 }
 
@@ -267,12 +270,15 @@ export function requireMiniAppUser(): MiddlewareHandler<{
     }
 
     const teams = c.get("teams");
+    const preferredTeamId = c.get("preferredTeamId");
     const requestedTeamId = ctx?.teamId;
     const cookieTeamId = readSignedValue(
       getCookie(c, ACTIVE_TEAM_COOKIE)
     );
+    // Priority: signed action context → server preferred → cookie → first membership
     const activeTeamId =
       teams.find((team) => team.id === requestedTeamId)?.id ??
+      teams.find((team) => team.id === preferredTeamId)?.id ??
       teams.find((team) => team.id === cookieTeamId)?.id ??
       teams[0]?.id;
 

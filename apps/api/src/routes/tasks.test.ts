@@ -609,3 +609,178 @@ test("team activity shows membership events", async () => {
   assert.ok(Array.isArray(body.events));
   assert.ok(body.events.length >= 1);
 });
+
+// ─── Multi-team: preferred team + task scoping ───────────────────────
+
+test("preferred team can be set and is returned on /me/teams", async () => {
+  const userId = await createUser(1901, "MultiAlice");
+
+  const teamARes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ name: "Workspace A" }),
+  });
+  const teamA = (await teamARes.json() as any).team;
+
+  const teamBRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ name: "Workspace B" }),
+  });
+  const teamB = (await teamBRes.json() as any).team;
+
+  const setRes = await app.request("/api/me/preferred-team", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ teamId: teamB.id }),
+  });
+  assert.equal(setRes.status, 200);
+  assert.equal((await setRes.json() as any).preferredTeamId, teamB.id);
+
+  const teamsRes = await app.request("/api/me/teams", {
+    headers: { "X-User-Id": userId },
+  });
+  const teamsBody = await teamsRes.json() as any;
+  assert.equal(teamsBody.preferredTeamId, teamB.id);
+  assert.ok(teamsBody.teams.length >= 2);
+  assert.ok(teamsBody.teams.some((t: any) => t.id === teamA.id));
+  assert.ok(teamsBody.teams.some((t: any) => t.id === teamB.id));
+});
+
+test("preferred team rejects non-member team ids", async () => {
+  const userId = await createUser(1902, "MultiBob");
+  const otherId = await createUser(1903, "OtherOwner");
+
+  const otherTeamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": otherId },
+    body: JSON.stringify({ name: "Secret Team" }),
+  });
+  const otherTeam = (await otherTeamRes.json() as any).team;
+
+  const setRes = await app.request("/api/me/preferred-team", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ teamId: otherTeam.id }),
+  });
+  assert.equal(setRes.status, 403);
+});
+
+test("POST /api/tasks requires X-Team-Id", async () => {
+  const userId = await createUser(1904, "NoTeamHeader");
+  await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ name: "Needs Header" }),
+  });
+
+  const res = await app.request("/api/tasks", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": userId,
+    },
+    body: JSON.stringify({ title: "No team header" }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("cross-team assigned_to=me is scoped to memberships and includes teamName", async () => {
+  const userId = await createUser(1905, "CrossAlice");
+
+  const teamARes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ name: "Alpha Team" }),
+  });
+  const teamA = (await teamARes.json() as any).team;
+
+  const teamBRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": userId },
+    body: JSON.stringify({ name: "Beta Team" }),
+  });
+  const teamB = (await teamBRes.json() as any).team;
+
+  for (const team of [teamA, teamB]) {
+    const createRes = await app.request("/api/tasks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-User-Id": userId,
+        "X-Team-Id": team.id,
+      },
+      body: JSON.stringify({
+        title: `Task in ${team.name}`,
+        assignedToUserId: userId,
+      }),
+    });
+    assert.equal(createRes.status, 201);
+  }
+
+  const listRes = await app.request("/api/tasks?assigned_to=me&limit=50", {
+    headers: { "X-User-Id": userId },
+  });
+  assert.equal(listRes.status, 200);
+  const listBody = await listRes.json() as any;
+  assert.ok(listBody.tasks.length >= 2);
+  for (const task of listBody.tasks) {
+    assert.ok(task.teamId === teamA.id || task.teamId === teamB.id);
+    assert.ok(typeof task.teamName === "string" && task.teamName.length > 0);
+  }
+
+  const summaryRes = await app.request("/api/me/task-summary", {
+    headers: { "X-User-Id": userId },
+  });
+  assert.equal(summaryRes.status, 200);
+  const summary = await summaryRes.json() as any;
+  assert.ok(summary.total >= 2);
+  assert.ok(summary.byTeam.length >= 2);
+});
+
+test("removing a member clears preferred team for that team", async () => {
+  const ownerId = await createUser(1906, "OwnerClear");
+  const memberId = await createUser(1907, "MemberClear");
+
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Clear Preferred Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  // Join via invite
+  const joinRes = await app.request("/api/teams/join", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": memberId },
+    body: JSON.stringify({ inviteCode: team.inviteCode }),
+  });
+  assert.equal(joinRes.status, 201);
+  const requestId = (await joinRes.json() as any).request.id;
+
+  const approveRes = await app.request(
+    `/api/teams/${team.id}/join-requests/${requestId}/approve`,
+    { method: "POST", headers: { "X-User-Id": ownerId } }
+  );
+  assert.equal(approveRes.status, 200);
+
+  const setRes = await app.request("/api/me/preferred-team", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", "X-User-Id": memberId },
+    body: JSON.stringify({ teamId: team.id }),
+  });
+  assert.equal(setRes.status, 200);
+
+  const removeRes = await app.request(
+    `/api/teams/${team.id}/members/${memberId}/remove`,
+    { method: "POST", headers: { "X-User-Id": ownerId } }
+  );
+  assert.equal(removeRes.status, 200);
+
+  const teamsRes = await app.request("/api/me/teams", {
+    headers: { "X-User-Id": memberId },
+  });
+  const teamsBody = await teamsRes.json() as any;
+  assert.equal(teamsBody.teams.length, 0);
+  assert.equal(teamsBody.preferredTeamId, null);
+});
