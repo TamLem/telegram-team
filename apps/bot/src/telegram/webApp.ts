@@ -10,6 +10,7 @@ export function miniAppRootUrl(baseUrl: string): string {
 function actionToPath(action: MiniAppAction, ctx: {
   teamId?: string;
   taskId?: string;
+  choreId?: string;
 }): string {
   switch (action) {
     case "create_task":
@@ -44,6 +45,10 @@ function actionToPath(action: MiniAppAction, ctx: {
       return "/app/team/settings";
     case "view_blocked_tasks":
       return `/app/board/${ctx.teamId}?status=blocked`;
+    case "view_chores":
+      return "/app/chores";
+    case "view_chore":
+      return ctx.choreId ? `/app/chores/${ctx.choreId}` : "/app/chores";
     default:
       return `/app/board/${ctx.teamId}?assignee=me`;
   }
@@ -57,6 +62,7 @@ export function miniAppContextUrl(
     teamId?: string;
     returnChatId: number;
     taskId?: string;
+    choreId?: string;
     ttlSeconds?: number;
   }
 ): string {
@@ -64,6 +70,7 @@ export function miniAppContextUrl(
   const path = actionToPath(input.action, {
     teamId: input.teamId,
     taskId: input.taskId,
+    choreId: input.choreId,
   });
   const url = new URL(path, baseUrl);
   url.searchParams.set("ctx", token);

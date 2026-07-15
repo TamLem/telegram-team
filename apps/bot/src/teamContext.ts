@@ -12,7 +12,8 @@ export type TeamAction =
   | "blocked"
   | "team"
   | "members"
-  | "invite";
+  | "invite"
+  | "chores";
 
 export async function loadUserTeams(userId: string): Promise<{
   teams: ActiveTeam[];

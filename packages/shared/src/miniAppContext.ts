@@ -21,7 +21,9 @@ export type MiniAppAction =
   | "manage_invite"
   | "review_join_requests"
   | "team_settings"
-  | "view_blocked_tasks";
+  | "view_blocked_tasks"
+  | "view_chores"
+  | "view_chore";
 
 export interface MiniAppContext {
   action: MiniAppAction;
@@ -29,6 +31,7 @@ export interface MiniAppContext {
   teamId?: string;
   returnChatId: number;
   taskId?: string;
+  choreId?: string;
   expiresAt: number;
   nonce: string;
 }
@@ -39,6 +42,7 @@ export interface CreateMiniAppContextInput {
   teamId?: string;
   returnChatId: number;
   taskId?: string;
+  choreId?: string;
   ttlSeconds?: number;
 }
 
@@ -79,6 +83,7 @@ export function createSignedMiniAppContext(
     teamId: input.teamId,
     returnChatId: input.returnChatId,
     taskId: input.taskId,
+    choreId: input.choreId,
     expiresAt: Math.floor(Date.now() / 1000) + ttl,
     nonce: randomBytes(8).toString("hex"),
   };

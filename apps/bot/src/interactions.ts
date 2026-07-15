@@ -8,6 +8,7 @@ import { blockedCommand } from "./commands/blocked.js";
 import { teamCommand } from "./commands/team.js";
 import { membersCommand } from "./commands/members.js";
 import { inviteCommand } from "./commands/invite.js";
+import { choresCommand } from "./commands/chores.js";
 import { taskCallback } from "./callbacks/task.js";
 import { onboardingCallback } from "./callbacks/onboarding.js";
 import { teamSelectCallback } from "./callbacks/teamSelect.js";
@@ -16,6 +17,7 @@ import { menuMessageHandler } from "./menu.js";
 export const BOT_COMMANDS: BotCommand[] = [
   { command: "start", description: "Sign in and show the menu" },
   { command: "help", description: "Show help and menu" },
+  { command: "chores", description: "View recurring chores" },
 ];
 
 export function registerBotInteractions(bot: Bot): void {
@@ -30,6 +32,7 @@ export function registerBotInteractions(bot: Bot): void {
   bot.command("/team", teamCommand);
   bot.command("/members", membersCommand);
   bot.command("/invite", inviteCommand);
+  bot.command("/chores", choresCommand);
 
   // Menu keyboard button handler
   bot.message(menuMessageHandler);

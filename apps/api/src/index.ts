@@ -6,6 +6,7 @@ import { tasksRouter } from "./routes/tasks.js";
 import { teamsRouter } from "./routes/teams.js";
 import { usersRouter } from "./routes/users.js";
 import { internalRouter } from "./routes/internal.js";
+import { choresRouter } from "./routes/chores.js";
 import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { createLogger } from "@telegram-team/shared";
 
@@ -45,6 +46,7 @@ app.route("/", healthRouter);
 app.route("/api", tasksRouter);
 app.route("/api", teamsRouter);
 app.route("/api", usersRouter);
+app.route("/api", choresRouter);
 app.route("/api", internalRouter);
 
 const port = parseInt(getEnv("API_PORT", getEnv("PORT", "3001")));

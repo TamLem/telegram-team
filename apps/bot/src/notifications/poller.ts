@@ -4,6 +4,7 @@ import { getEnv, getEnvOptional } from "@telegram-team/config";
 import { miniAppContextUrl } from "../telegram/webApp.js";
 import { fetchWithTimeout } from "../http.js";
 import { logError } from "../logger.js";
+import { formatChoreInterval } from "@telegram-team/shared";
 import { escapeHtml } from "../telegram/html.js";
 import { MAIN_MENU_KEYBOARD } from "../menu.js";
 
@@ -37,11 +38,16 @@ interface NotificationPayload {
   actorName?: string;
   commentBody?: string;
   taskId?: string;
+  choreId?: string;
   teamId?: string;
   dueAt?: string | null;
   teamName?: string;
   memberName?: string;
   inviteCode?: string;
+  choreInterval?: string;
+  choreIntervalDays?: number | null;
+  choreTitle?: string;
+  remindOffsetMinutes?: number;
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -147,6 +153,26 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? "Normal"}`
       );
 
+    case "chore_due": {
+      const choreTitle = escapeHtml(
+        payload.choreTitle ?? payload.taskTitle ?? "Chore"
+      );
+      const interval = formatChoreInterval(
+        payload.choreInterval ?? "weekly",
+        payload.choreIntervalDays
+      );
+      const dueLine = payload.dueAt
+        ? `\nDue: ${formatDueDate(payload.dueAt)}`
+        : "";
+      return (
+        `<b>Chore due (recurring)</b>\n\n` +
+        `<b>${choreTitle}</b>${team}\n` +
+        `Repeats: ${interval}` +
+        dueLine +
+        `\n\nMark done when finished — the next cycle will be scheduled automatically.`
+      );
+    }
+
     case "assignee_reminded":
       return (
         `<b>Reminder</b>\n\n` +
@@ -232,6 +258,18 @@ function buildActionUrl(
 
   if (eventType === "member_removed") {
     return null;
+  }
+
+  if (eventType === "chore_due") {
+    const teamId = payload.teamId;
+    if (!teamId) return null;
+    return miniAppContextUrl(MINIAPP_BASE_URL, {
+      action: "view_chores",
+      telegramUserId,
+      teamId,
+      returnChatId: telegramUserId,
+      choreId: payload.choreId,
+    });
   }
 
   const teamId = payload.teamId;

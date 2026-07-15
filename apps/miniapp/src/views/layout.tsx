@@ -512,6 +512,114 @@ body {
   background: var(--tg-theme-button-color, #3390ec);
   color: var(--tg-theme-button-text-color, #fff);
 }
+
+/* Chores — visually distinct from kanban task cards */
+.chores-page-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.12), rgba(99, 102, 241, 0.1));
+  border: 1px solid rgba(13, 148, 136, 0.25);
+}
+.chores-page-banner-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #0d9488;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+.chores-page-banner h1 {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  color: #0f766e;
+}
+.chores-page-banner p {
+  font-size: 12px;
+  color: var(--tg-theme-hint-color, #64748b);
+  margin: 2px 0 0 0;
+}
+.chore-card {
+  background: var(--tg-theme-secondary-bg-color, #fff);
+  border-radius: 12px;
+  padding: 14px 14px 14px 16px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(13, 148, 136, 0.18);
+  border-left: 4px solid #0d9488;
+  box-shadow: 0 1px 3px rgba(13, 148, 136, 0.08);
+}
+.chore-card--due {
+  border-left-color: #f59e0b;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.08), transparent 40%);
+}
+.chore-card--paused {
+  opacity: 0.65;
+  border-left-color: #94a3b8;
+}
+.chore-card-title {
+  font-size: 15px;
+  font-weight: 650;
+  margin-bottom: 4px;
+}
+.chore-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.chore-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.chore-badge-interval {
+  background: rgba(13, 148, 136, 0.15);
+  color: #0f766e;
+}
+.chore-badge-due {
+  background: #fef3c7;
+  color: #b45309;
+}
+.chore-badge-ok {
+  background: #dcfce7;
+  color: #15803d;
+}
+.chore-badge-paused {
+  background: #e2e8f0;
+  color: #475569;
+}
+.chore-card-sub {
+  font-size: 13px;
+  color: var(--tg-theme-hint-color, #64748b);
+  margin-bottom: 10px;
+}
+.chore-done-btn {
+  background: #0d9488 !important;
+  color: #fff !important;
+  border: none;
+  width: 100%;
+}
+.chore-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #0f766e;
+  margin: 16px 0 8px;
+}
 `;
 
 const script = `

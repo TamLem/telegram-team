@@ -9,6 +9,8 @@ import { tasksRouter } from "./tasks.js";
 import { teamsRouter } from "./teams.js";
 import { usersRouter } from "./users.js";
 import { healthRouter } from "./health.js";
+import { choresRouter } from "./chores.js";
+import { processChoreDueAlerts } from "../services/chore.service.js";
 
 const DB_URL = path.join(
   tmpdir(),
@@ -22,6 +24,7 @@ app.route("/", healthRouter);
 app.route("/api", tasksRouter);
 app.route("/api", teamsRouter);
 app.route("/api", usersRouter);
+app.route("/api", choresRouter);
 
 async function createUser(tgId: number, firstName: string): Promise<string> {
   const res = await app.request(`/api/users/telegram/${tgId}`, {
@@ -783,4 +786,290 @@ test("removing a member clears preferred team for that team", async () => {
   const teamsBody = await teamsRes.json() as any;
   assert.equal(teamsBody.teams.length, 0);
   assert.equal(teamsBody.preferredTeamId, null);
+});
+
+// ─── Chores ──────────────────────────────────────────────────────────
+
+test("POST /api/chores creates a chore for a team member", async () => {
+  const ownerId = await createUser(9101, "ChoreOwner");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Chore Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const res = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Take out trash",
+      assigneeUserId: ownerId,
+      interval: "weekly",
+      dueImmediately: true,
+    }),
+  });
+  assert.equal(res.status, 201);
+  const body = await res.json() as any;
+  assert.equal(body.chore.title, "Take out trash");
+  assert.equal(body.chore.interval, "weekly");
+  assert.equal(body.chore.assigneeUserId, ownerId);
+  assert.equal(body.chore.active, 1);
+});
+
+test("complete chore advances next_due_at and allows re-notification", async () => {
+  const ownerId = await createUser(9102, "ChoreCompleter");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Chore Complete Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const createRes = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Water plants",
+      assigneeUserId: ownerId,
+      interval: "daily",
+      dueImmediately: true,
+    }),
+  });
+  const chore = (await createRes.json() as any).chore;
+  const beforeDue = chore.nextDueAt;
+
+  const due1 = await processChoreDueAlerts();
+  assert.ok(due1.due >= 1);
+
+  const completeRes = await app.request(`/api/chores/${chore.id}/complete`, {
+    method: "POST",
+    headers: { "X-User-Id": ownerId },
+  });
+  assert.equal(completeRes.status, 200);
+  const completed = (await completeRes.json() as any).chore;
+  assert.ok(completed.nextDueAt > beforeDue);
+  assert.ok(completed.lastCompletedAt);
+  assert.equal(completed.lastNotifiedAt, null);
+
+  // Next cycle is in the future — no additional due notification for this chore
+  await processChoreDueAlerts();
+  const notifs = await getDb()
+    .select()
+    .from(notifications)
+    .where(eq(notifications.recipientUserId, ownerId));
+  const choreDue = notifs.filter((n) => n.eventType === "chore_due");
+  assert.equal(choreDue.length, 1);
+});
+
+test("non-member cannot list chores", async () => {
+  const ownerId = await createUser(9103, "ChoreOwner2");
+  const outsiderId = await createUser(9104, "Outsider");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Private Chores" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const res = await app.request(`/api/chores?team_id=${team.id}`, {
+    headers: { "X-User-Id": outsiderId },
+  });
+  assert.equal(res.status, 403);
+});
+
+test("custom every-N-days interval advances by N days on complete", async () => {
+  const ownerId = await createUser(9105, "CustomChore");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Custom Interval Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const createRes = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Every 3 days",
+      assigneeUserId: ownerId,
+      interval: "custom",
+      intervalDays: 3,
+      dueImmediately: true,
+    }),
+  });
+  assert.equal(createRes.status, 201);
+  const chore = (await createRes.json() as any).chore;
+  assert.equal(chore.interval, "custom");
+  assert.equal(chore.intervalDays, 3);
+
+  const completeRes = await app.request(`/api/chores/${chore.id}/complete`, {
+    method: "POST",
+    headers: { "X-User-Id": ownerId },
+  });
+  assert.equal(completeRes.status, 200);
+  const completed = (await completeRes.json() as any).chore;
+  const due = new Date(chore.nextDueAt).getTime();
+  const next = new Date(completed.nextDueAt).getTime();
+  const days = (next - Math.max(Date.now(), due)) / (24 * 60 * 60 * 1000);
+  assert.ok(days >= 2.9 && days <= 3.1, `expected ~3 days, got ${days}`);
+});
+
+test("custom interval without intervalDays is rejected", async () => {
+  const ownerId = await createUser(9106, "BadCustom");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Bad Custom Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const res = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Missing days",
+      assigneeUserId: ownerId,
+      interval: "custom",
+    }),
+  });
+  assert.equal(res.status, 400);
+});
+
+test("chore remind offset fires before due and respects notifyEnabled", async () => {
+  const ownerId = await createUser(9110, "RemindOwner");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Remind Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const dueInHour = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const createRes = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Early remind",
+      assigneeUserId: ownerId,
+      interval: "weekly",
+      nextDueAt: dueInHour,
+      notifyEnabled: true,
+      remindOffsetMinutes: 120, // 2h before — window already open
+    }),
+  });
+  assert.equal(createRes.status, 201);
+  const chore = (await createRes.json() as any).chore;
+  assert.equal(chore.remindOffsetMinutes, 120);
+  assert.equal(chore.notifyEnabled, 1);
+
+  const due1 = await processChoreDueAlerts();
+  assert.ok(due1.due >= 1);
+
+  // Second pass no duplicate
+  const due2 = await processChoreDueAlerts();
+  void due2;
+  const notifs = await getDb()
+    .select()
+    .from(notifications)
+    .where(eq(notifications.recipientUserId, ownerId));
+  assert.equal(
+    notifs.filter((n) => n.eventType === "chore_due").length,
+    1
+  );
+
+  // Disable notify — no more alerts even if we clear cycle key via complete+redue
+  const patchRes = await app.request(`/api/chores/${chore.id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+    },
+    body: JSON.stringify({ notifyEnabled: false }),
+  });
+  assert.equal(patchRes.status, 200);
+  assert.equal((await patchRes.json() as any).chore.notifyEnabled, 0);
+});
+
+test("removed member cannot complete a chore they still appear assigned to", async () => {
+  const ownerId = await createUser(9107, "OwnerRm");
+  const memberId = await createUser(9108, "MemberRm");
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": ownerId },
+    body: JSON.stringify({ name: "Remove Chore Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const joinRes = await app.request("/api/teams/join", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": memberId },
+    body: JSON.stringify({ inviteCode: team.inviteCode }),
+  });
+  assert.equal(joinRes.status, 201);
+  const requestId = (await joinRes.json() as any).request.id;
+  await app.request(
+    `/api/teams/${team.id}/join-requests/${requestId}/approve`,
+    { method: "POST", headers: { "X-User-Id": ownerId } }
+  );
+
+  const createRes = await app.request("/api/chores", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": ownerId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Orphan assignee chore",
+      assigneeUserId: memberId,
+      interval: "weekly",
+      dueImmediately: true,
+    }),
+  });
+  assert.equal(createRes.status, 201);
+  const chore = (await createRes.json() as any).chore;
+
+  await app.request(`/api/teams/${team.id}/members/${memberId}/remove`, {
+    method: "POST",
+    headers: { "X-User-Id": ownerId },
+  });
+
+  const completeRes = await app.request(`/api/chores/${chore.id}/complete`, {
+    method: "POST",
+    headers: { "X-User-Id": memberId },
+  });
+  assert.equal(completeRes.status, 403);
+
+  // No chore_due for non-member assignees
+  const due = await processChoreDueAlerts();
+  void due;
+  const notifs = await getDb()
+    .select()
+    .from(notifications)
+    .where(eq(notifications.recipientUserId, memberId));
+  assert.equal(
+    notifs.filter((n) => n.eventType === "chore_due").length,
+    0
+  );
 });

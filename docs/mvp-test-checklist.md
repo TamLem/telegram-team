@@ -105,6 +105,12 @@ Use this checklist to manually verify TaskPi end-to-end before release.
 - [ ] User can join a second team (approve flow) and see both on `/start`
 - [ ] Mini App launch with preferred team opens that board
 - [ ] Mini App team switcher (`/app/teams`) updates preferred team
+- [ ] **Chores** nav opens teal-styled page (not board columns); create weekly chore assigns member
+- [ ] Create chore: how often (always repeats), next due, notify **each cycle** (on/off + offset)
+- [ ] Edit cadence updates next due, interval, and per-cycle notification settings
+- [ ] Completing a chore advances next due (not a one-time reminder)
+- [ ] Chore due notifies assignee via Telegram (`chore_due`); Mark done advances next due
+- [ ] Bot `/chores` lists due/upcoming for preferred team
 - [ ] Cross-team **My Tasks** (`/app/my-tasks` and bot menu) shows tasks labeled by team
 - [ ] Board / New Task operate on preferred or selected team (not silent first membership)
 - [ ] Bot **Switch team** callback changes preferred team and re-runs the command

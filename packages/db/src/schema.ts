@@ -161,3 +161,44 @@ export const teamEvents = sqliteTable("team_events", {
     .notNull()
     .default(sql`(datetime('now'))`),
 });
+
+/** Recurring team responsibilities — separate from kanban tasks. */
+export const chores = sqliteTable("chores", {
+  id: text("id").primaryKey(),
+  teamId: text("team_id")
+    .notNull()
+    .references(() => teams.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  assigneeUserId: text("assignee_user_id")
+    .notNull()
+    .references(() => users.id),
+  createdByUserId: text("created_by_user_id")
+    .notNull()
+    .references(() => users.id),
+  /** daily | weekly | biweekly | monthly | custom */
+  interval: text("interval").notNull().default("weekly"),
+  /** Used when interval is custom (every N days). */
+  intervalDays: integer("interval_days"),
+  nextDueAt: text("next_due_at").notNull(),
+  lastCompletedAt: text("last_completed_at"),
+  lastCompletedByUserId: text("last_completed_by_user_id").references(
+    () => users.id
+  ),
+  lastNotifiedAt: text("last_notified_at"),
+  /** 1 = send Telegram reminders, 0 = silent (still track due/complete) */
+  notifyEnabled: integer("notify_enabled").notNull().default(1),
+  /**
+   * Minutes before each nextDueAt to notify (applies every cycle).
+   * 0 = at due time; 60 = 1 hour before; 1440 = 1 day before.
+   */
+  remindOffsetMinutes: integer("remind_offset_minutes").notNull().default(0),
+  /** 1 = active, 0 = paused */
+  active: integer("active").notNull().default(1),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});

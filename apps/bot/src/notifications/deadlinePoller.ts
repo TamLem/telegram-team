@@ -11,6 +11,7 @@ const INTERNAL_FETCH_TIMEOUT_MS = 30_000;
 interface DeadlineCheckResult {
   dueSoon: number;
   overdue: number;
+  choresDue?: number;
 }
 
 async function fetchDeadlineCheck(): Promise<DeadlineCheckResult> {
@@ -67,9 +68,12 @@ export class DeadlinePoller {
 
     try {
       const result = await fetchDeadlineCheck();
-      if (result.dueSoon > 0 || result.overdue > 0) {
+      const choresDue = result.choresDue ?? 0;
+      if (result.dueSoon > 0 || result.overdue > 0 || choresDue > 0) {
         console.log(
-          `[deadline] created ${result.dueSoon} due-soon + ${result.overdue} overdue notifications`
+          `[deadline] created ${result.dueSoon} due-soon + ${result.overdue} overdue` +
+            (choresDue > 0 ? ` + ${choresDue} chore-due` : "") +
+            ` notifications`
         );
       }
     } catch (err) {

@@ -477,3 +477,132 @@ export async function getTeamActivity(teamId: string, userId: string): Promise<T
   );
   return res.events;
 }
+
+export interface ChoreResponse {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string | null;
+  assigneeUserId: string;
+  createdByUserId: string;
+  interval: string;
+  intervalDays: number | null;
+  nextDueAt: string;
+  lastCompletedAt: string | null;
+  lastCompletedByUserId: string | null;
+  lastNotifiedAt: string | null;
+  notifyEnabled: number;
+  remindOffsetMinutes: number;
+  active: number;
+  createdAt: string;
+  updatedAt: string;
+  teamName?: string | null;
+  assigneeName?: string | null;
+}
+
+export async function listChores(
+  teamId: string,
+  userId: string
+): Promise<ChoreResponse[]> {
+  const res = await apiFetch<{ chores: ChoreResponse[] }>(
+    `/api/chores?team_id=${encodeURIComponent(teamId)}`,
+    { headers: { "X-User-Id": userId, "X-Team-Id": teamId } }
+  );
+  return res.chores;
+}
+
+export async function listMyChores(userId: string): Promise<ChoreResponse[]> {
+  const res = await apiFetch<{ chores: ChoreResponse[] }>("/api/chores/mine", {
+    headers: { "X-User-Id": userId },
+  });
+  return res.chores;
+}
+
+export async function getChore(
+  choreId: string,
+  userId: string
+): Promise<ChoreResponse | null> {
+  try {
+    const res = await apiFetch<{ chore: ChoreResponse }>(
+      `/api/chores/${choreId}`,
+      { headers: { "X-User-Id": userId } }
+    );
+    return res.chore;
+  } catch {
+    return null;
+  }
+}
+
+export async function createChore(
+  teamId: string,
+  userId: string,
+  data: {
+    title: string;
+    description?: string | null;
+    assigneeUserId: string;
+    interval: string;
+    intervalDays?: number | null;
+    nextDueAt?: string | null;
+    dueImmediately?: boolean;
+    notifyEnabled?: boolean;
+    remindOffsetMinutes?: number;
+  }
+): Promise<ChoreResponse> {
+  const res = await apiFetch<{ chore: ChoreResponse }>("/api/chores", {
+    method: "POST",
+    headers: {
+      "X-User-Id": userId,
+      "X-Team-Id": teamId,
+    },
+    body: JSON.stringify(data),
+  });
+  return res.chore;
+}
+
+export async function completeChore(
+  choreId: string,
+  userId: string
+): Promise<ChoreResponse> {
+  const res = await apiFetch<{ chore: ChoreResponse }>(
+    `/api/chores/${choreId}/complete`,
+    {
+      method: "POST",
+      headers: { "X-User-Id": userId },
+    }
+  );
+  return res.chore;
+}
+
+export async function updateChore(
+  choreId: string,
+  userId: string,
+  data: {
+    active?: boolean;
+    title?: string;
+    description?: string | null;
+    assigneeUserId?: string;
+    interval?: string;
+    intervalDays?: number | null;
+    nextDueAt?: string;
+    notifyEnabled?: boolean;
+    remindOffsetMinutes?: number;
+  }
+): Promise<ChoreResponse> {
+  const res = await apiFetch<{ chore: ChoreResponse }>(`/api/chores/${choreId}`, {
+    method: "PATCH",
+    headers: { "X-User-Id": userId },
+    body: JSON.stringify(data),
+  });
+  return res.chore;
+}
+
+export async function pauseChore(
+  choreId: string,
+  userId: string
+): Promise<ChoreResponse> {
+  const res = await apiFetch<{ chore: ChoreResponse }>(`/api/chores/${choreId}`, {
+    method: "DELETE",
+    headers: { "X-User-Id": userId },
+  });
+  return res.chore;
+}

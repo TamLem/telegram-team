@@ -166,6 +166,33 @@ export interface TaskItem {
   updatedAt: string;
 }
 
+export interface ChoreItem {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string | null;
+  assigneeUserId: string;
+  createdByUserId: string;
+  interval: string;
+  intervalDays?: number | null;
+  nextDueAt: string;
+  lastCompletedAt: string | null;
+  active: number;
+  assigneeName?: string | null;
+  teamName?: string | null;
+}
+
+export async function listTeamChores(
+  teamId: string,
+  userId: string
+): Promise<ChoreItem[]> {
+  const res = await apiFetch<{ chores: ChoreItem[] }>(
+    `/api/chores?team_id=${encodeURIComponent(teamId)}`,
+    { headers: { "X-User-Id": userId, "X-Team-Id": teamId } }
+  );
+  return res.chores;
+}
+
 export interface MyTaskSummary {
   todo: number;
   doing: number;

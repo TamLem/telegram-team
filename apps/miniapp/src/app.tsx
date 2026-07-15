@@ -7,6 +7,7 @@ import { boardRoutes } from "./routes/board.js";
 import { onboardingRoutes } from "./routes/onboarding.js";
 import { teamRoutes } from "./routes/teams.js";
 import { launchRoutes } from "./routes/launch.js";
+import { choresRoutes } from "./routes/chores.js";
 import type { AppVariables } from "./auth/requireMiniAppUser.js";
 
 const log = createLogger("miniapp");
@@ -59,6 +60,7 @@ app.use("/app/*", async (c, next) => {
 
 app.route("/app", launchRoutes);
 app.route("/app", onboardingRoutes);
+app.route("/app", choresRoutes);
 app.route("/app", tasksRoutes);
 app.route("/app", boardRoutes);
 app.route("/app", teamRoutes);

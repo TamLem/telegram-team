@@ -375,6 +375,10 @@ function actionToPath(ctx: MiniAppContext): string {
       return "/app/team/settings";
     case "view_blocked_tasks":
       return `/app/board/${ctx.teamId}?status=blocked`;
+    case "view_chores":
+      return "/app/chores";
+    case "view_chore":
+      return ctx.choreId ? `/app/chores/${ctx.choreId}` : "/app/chores";
     default:
       return `/app/board/${ctx.teamId}?assignee=me`;
   }

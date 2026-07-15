@@ -5,11 +5,12 @@ export const MiniAppNav: FC<{
   teamId?: string;
   teamName?: string;
   teams?: Array<{ id: string; name: string }>;
-  current?: "board" | "team" | "new" | "mytasks";
+  current?: "board" | "team" | "new" | "mytasks" | "chores";
 }> = ({ teamId, teamName, teams = [], current }) => {
   const links: Array<{ label: string; href: string; id: string }> = [
     { label: "My Tasks", href: "/app/my-tasks", id: "mytasks" },
     { label: "Board", href: teamId ? `/app/board/${teamId}` : "/app", id: "board" },
+    { label: "Chores", href: "/app/chores", id: "chores" },
     { label: "Team", href: "/app/team", id: "team" },
   ];
 

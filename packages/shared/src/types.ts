@@ -99,6 +99,31 @@ export interface Notification {
   deliveredAt: string | null;
 }
 
+export interface Chore {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string | null;
+  assigneeUserId: string;
+  createdByUserId: string;
+  interval: string;
+  /** Days between occurrences when interval is `custom` (1–365). */
+  intervalDays: number | null;
+  nextDueAt: string;
+  lastCompletedAt: string | null;
+  lastCompletedByUserId: string | null;
+  lastNotifiedAt: string | null;
+  /** 1 = reminders on, 0 = off */
+  notifyEnabled: number;
+  /** Minutes before due to remind (0 = at due time). */
+  remindOffsetMinutes: number;
+  active: number;
+  createdAt: string;
+  updatedAt: string;
+  teamName?: string | null;
+  assigneeName?: string | null;
+}
+
 export interface NotificationPayload {
   taskTitle?: string;
   taskStatus?: string;
@@ -109,11 +134,16 @@ export interface NotificationPayload {
   actorName?: string;
   commentBody?: string;
   taskId?: string;
+  choreId?: string;
   teamId?: string;
   dueAt?: string | null;
   teamName?: string;
   memberName?: string;
   inviteCode?: string;
+  choreInterval?: string;
+  choreIntervalDays?: number | null;
+  choreTitle?: string;
+  remindOffsetMinutes?: number;
 }
 
 export type TaskStatusType = (typeof import("./enums.js").TaskStatus)[keyof typeof import("./enums.js").TaskStatus];

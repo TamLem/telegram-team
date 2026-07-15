@@ -6,6 +6,7 @@ import {
   markNotificationDelivered,
 } from "../services/notification.service.js";
 import { processDeadlineAlerts } from "../services/task.service.js";
+import { processChoreDueAlerts } from "../services/chore.service.js";
 
 export const internalRouter = new Hono();
 
@@ -48,6 +49,11 @@ internalRouter.post("/internal/deadline-check", async (c) => {
     return c.json({ error: "Unauthorized" }, 401);
   }
 
-  const result = await processDeadlineAlerts();
-  return c.json(result);
+  const taskResult = await processDeadlineAlerts();
+  const choreResult = await processChoreDueAlerts();
+  return c.json({
+    dueSoon: taskResult.dueSoon,
+    overdue: taskResult.overdue,
+    choresDue: choreResult.due,
+  });
 });

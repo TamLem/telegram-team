@@ -131,6 +131,29 @@ CREATE TABLE IF NOT EXISTS team_events (
   new_value TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS chores (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  assignee_user_id TEXT NOT NULL REFERENCES users(id),
+  created_by_user_id TEXT NOT NULL REFERENCES users(id),
+  interval TEXT NOT NULL DEFAULT 'weekly',
+  interval_days INTEGER,
+  next_due_at TEXT NOT NULL,
+  last_completed_at TEXT,
+  last_completed_by_user_id TEXT REFERENCES users(id),
+  last_notified_at TEXT,
+  notify_enabled INTEGER NOT NULL DEFAULT 1,
+  remind_offset_minutes INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_chores_team ON chores(team_id);
+CREATE INDEX IF NOT EXISTS idx_chores_due ON chores(active, next_due_at);
 `;
 
 function migrateDb(sqlite: Database.Database): void {
@@ -151,6 +174,61 @@ function migrateDb(sqlite: Database.Database): void {
     );
   } catch {
     // index may already exist or duplicates prevent creation
+  }
+  try {
+    sqlite.exec(`
+CREATE TABLE IF NOT EXISTS chores (
+  id TEXT PRIMARY KEY,
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  title TEXT NOT NULL,
+  description TEXT,
+  assignee_user_id TEXT NOT NULL REFERENCES users(id),
+  created_by_user_id TEXT NOT NULL REFERENCES users(id),
+  interval TEXT NOT NULL DEFAULT 'weekly',
+  interval_days INTEGER,
+  next_due_at TEXT NOT NULL,
+  last_completed_at TEXT,
+  last_completed_by_user_id TEXT REFERENCES users(id),
+  last_notified_at TEXT,
+  notify_enabled INTEGER NOT NULL DEFAULT 1,
+  remind_offset_minutes INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`);
+  } catch {
+    // table may already exist
+  }
+  try {
+    sqlite.exec("ALTER TABLE chores ADD COLUMN interval_days INTEGER");
+  } catch {
+    // column already exists
+  }
+  try {
+    sqlite.exec(
+      "ALTER TABLE chores ADD COLUMN notify_enabled INTEGER NOT NULL DEFAULT 1"
+    );
+  } catch {
+    // column already exists
+  }
+  try {
+    sqlite.exec(
+      "ALTER TABLE chores ADD COLUMN remind_offset_minutes INTEGER NOT NULL DEFAULT 0"
+    );
+  } catch {
+    // column already exists
+  }
+  try {
+    sqlite.exec("CREATE INDEX IF NOT EXISTS idx_chores_team ON chores(team_id)");
+  } catch {
+    // ignore
+  }
+  try {
+    sqlite.exec(
+      "CREATE INDEX IF NOT EXISTS idx_chores_due ON chores(active, next_due_at)"
+    );
+  } catch {
+    // ignore
   }
 }
 

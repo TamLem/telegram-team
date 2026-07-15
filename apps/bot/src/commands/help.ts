@@ -10,7 +10,8 @@ export async function helpCommand(ctx: BotContext): Promise<void> {
       `• 🚫 Blocked — see blocked tasks\n` +
       `• ✨ New Task — create a task\n` +
       `• 👥 Team — manage your team\n` +
-      `• 👤 Members — view team members\n\n` +
+      `• 👤 Members — view team members\n` +
+      `• /chores — recurring team chores\n\n` +
       `You can also use /start to sync your account.`,
     { reply_markup: MAIN_MENU_KEYBOARD }
   );

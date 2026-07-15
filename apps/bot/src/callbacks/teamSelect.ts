@@ -12,6 +12,7 @@ import { blockedCommand } from "../commands/blocked.js";
 import { teamCommand } from "../commands/team.js";
 import { membersCommand } from "../commands/members.js";
 import { inviteCommand } from "../commands/invite.js";
+import { choresCommand } from "../commands/chores.js";
 
 const ACTIONS: Record<TeamAction, (ctx: BotContext, opts?: { teamId?: string }) => Promise<void>> = {
   board: boardCommand,
@@ -20,6 +21,7 @@ const ACTIONS: Record<TeamAction, (ctx: BotContext, opts?: { teamId?: string }) 
   team: teamCommand,
   members: membersCommand,
   invite: inviteCommand,
+  chores: choresCommand,
 };
 
 function isTeamAction(value: string): value is TeamAction {

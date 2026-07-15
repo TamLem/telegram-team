@@ -1,4 +1,13 @@
-import type { Task, TaskComment, TaskEvent, Team, TeamMember, TeamJoinRequest, User } from "./types.js";
+import type {
+  Task,
+  TaskComment,
+  TaskEvent,
+  Team,
+  TeamMember,
+  TeamJoinRequest,
+  User,
+  Chore,
+} from "./types.js";
 
 export interface CreateTeamDto {
   name: string;
@@ -84,6 +93,46 @@ export interface MeResponse {
 
 export interface SetPreferredTeamDto {
   teamId: string;
+}
+
+export interface CreateChoreDto {
+  title: string;
+  description?: string | null;
+  assigneeUserId: string;
+  interval: string;
+  /** Required when interval is `custom` (every N days). */
+  intervalDays?: number | null;
+  /** Explicit next due (ISO). Overrides dueImmediately when set. */
+  nextDueAt?: string | null;
+  /** If true and nextDueAt omitted, next due = now. Default true. */
+  dueImmediately?: boolean;
+  /** Telegram reminders (default true). */
+  notifyEnabled?: boolean;
+  /**
+   * Minutes before each due to notify (recurring each cycle).
+   * 0 = at due time, 60 = 1 hour before, 1440 = 1 day before.
+   */
+  remindOffsetMinutes?: number;
+}
+
+export interface UpdateChoreDto {
+  title?: string;
+  description?: string | null;
+  assigneeUserId?: string;
+  interval?: string;
+  intervalDays?: number | null;
+  active?: boolean;
+  nextDueAt?: string;
+  notifyEnabled?: boolean;
+  remindOffsetMinutes?: number;
+}
+
+export interface ChoreResponse {
+  chore: Chore;
+}
+
+export interface ChoresListResponse {
+  chores: Chore[];
 }
 
 export interface ApiError {

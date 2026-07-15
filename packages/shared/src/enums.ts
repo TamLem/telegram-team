@@ -49,3 +49,12 @@ export enum TeamEventType {
   MEMBER_REMOVED = "member_removed",
   MEMBER_ROLE_CHANGED = "member_role_changed",
 }
+
+export enum ChoreInterval {
+  DAILY = "daily",
+  WEEKLY = "weekly",
+  BIWEEKLY = "biweekly",
+  MONTHLY = "monthly",
+  /** Use with intervalDays (every N days). */
+  CUSTOM = "custom",
+}
