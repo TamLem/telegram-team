@@ -74,6 +74,23 @@ MINIAPP_CONTEXT_SECRET=dev-secret
 MINIAPP_BASE_URL=http://localhost:3002
 ```
 
+### Web browser access (Telegram Login Widget)
+
+The Mini App works both inside Telegram and in a normal browser.
+
+| Context | Auth |
+|---------|------|
+| Telegram Mini App / WebView | `Telegram.WebApp.initData` → `POST /app/auth` |
+| Desktop/mobile browser | [Login Widget](https://core.telegram.org/widgets/login) → `POST /app/auth/web` |
+
+To enable browser sign-in:
+
+1. Set `BOT_USERNAME` (same bot that owns `BOT_TOKEN`, no `@`).
+2. In [@BotFather](https://t.me/BotFather), run `/setdomain` and set the domain to your public Mini App host (production domain or Cloudflare tunnel host from `pnpm dev` — not `localhost`).
+3. Open `https://<your-domain>/app` in a browser and use **Log in with Telegram**.
+
+Both flows issue the same `ttp_session` cookie. Signed `?ctx=` action links still require the Telegram user id on the link to match the signed-in user.
+
 ---
 
 ## Database

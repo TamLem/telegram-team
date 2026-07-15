@@ -38,11 +38,11 @@ No `action_sessions` table. No bot conversation state. No wizard-style task crea
 ### Auth Flow
 
 1. **Bot** generates a signed ctx token and sends a `web_app` inline button with URL `${MINIAPP_BASE_URL}/app/tasks/new?ctx=<token>` (`apps/bot/src/telegram/webApp.ts`).
-2. **Mini App middleware** (`requireMiniAppContext`) verifies the ctx token. If no session cookie, renders a bootstrap HTML page that:
-   - Reads `window.Telegram.WebApp.initData`
-   - POSTs `{ initData, ctx }` to `/app/auth` via `fetch` (not a form POST — avoids cookie loss on 302 in WKWebView)
-   - Redirects client-side to the returned URL
-3. **`/app/auth`** validates initData HMAC, verifies ctx, compares Telegram user ID from initData with `ctx.telegramUserId`, issues a `ttp_session` cookie (15-minute, signed, httpOnly, SameSite=Lax), returns `{ redirect: "<path>?ctx=<token>" }`.
+2. **Mini App middleware** (`requireMiniAppUser`) verifies the ctx token. If no session cookie (or identity refresh/mismatch), renders a bootstrap HTML page that:
+   - **Inside Telegram:** reads `window.Telegram.WebApp.initData`, POSTs `{ initData, ctx }` to `/app/auth`
+   - **In a normal browser:** shows the Telegram Login Widget (`BOT_USERNAME` + BotFather `/setdomain`), POSTs `{ login, ctx }` to `/app/auth/web`
+   - Redirects client-side to the returned URL (fetch + JSON avoids cookie loss on 302 in WKWebView)
+3. **`/app/auth`** validates Mini App initData (HMAC with `WebAppData` secret). **`/app/auth/web`** validates Login Widget fields (HMAC with `SHA256(bot_token)`). Both verify ctx user match when present, issue the same `ttp_session` cookie (signed, httpOnly, SameSite=Lax), return `{ redirect: "..." }`.
 4. On the redirected request, the middleware reads the cookie, attaches `telegramUser` + `apiUser` + `ctx` to the Hono context, and renders the page.
 
 ### Validation Rules

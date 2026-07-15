@@ -8,6 +8,7 @@ import {
   type MiniAppContext,
 } from "@telegram-team/shared";
 import { validateTelegramInitData, type TelegramUser } from "./validateTelegramInitData.js";
+import { validateTelegramLoginWidget } from "./validateTelegramLoginWidget.js";
 import { getOrCreateUser, getUserTeams } from "../services/apiClient.js";
 
 const log = createLogger("miniapp");
@@ -25,6 +26,8 @@ const SESSION_COOKIE = "ttp_session";
 const ACTIVE_TEAM_COOKIE = "ttp_active_team";
 const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 const ACTIVE_TEAM_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
+/** Login Widget auth_date max age (Telegram recommends checking freshness). */
+const LOGIN_WIDGET_MAX_AGE_SECONDS = 24 * 60 * 60;
 
 interface MiniAppSession {
   user: TelegramUser;
@@ -165,45 +168,161 @@ function safeAppPath(value: string | undefined): string {
   return value;
 }
 
-function renderBootstrapPage(ctxToken: string | undefined, returnTo: string): Response {
+function botUsernameForWidget(): string | undefined {
+  const raw = getEnvOptional("BOT_USERNAME");
+  if (!raw) return undefined;
+  return raw.replace(/^@/, "").trim() || undefined;
+}
+
+function renderBootstrapPage(
+  ctxToken: string | undefined,
+  returnTo: string,
+  options: { hasSession?: boolean } = {}
+): Response {
+  const botUsername = botUsernameForWidget();
+  const safeReturn = safeAppPath(returnTo);
+  const hasSession = Boolean(options.hasSession);
   const body = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<title>Opening Task Manager</title>
+<title>Sign in — TaskPi</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--tg-theme-bg-color, #f5f5f5);
+    color: var(--tg-theme-text-color, #1e293b);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .card {
+    background: var(--tg-theme-secondary-bg-color, #fff);
+    border-radius: 16px;
+    padding: 32px 28px;
+    max-width: 360px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  p { font-size: 14px; color: var(--tg-theme-hint-color, #64748b); margin-bottom: 20px; line-height: 1.45; }
+  #status { font-size: 14px; color: var(--tg-theme-hint-color, #64748b); min-height: 1.4em; margin-bottom: 12px; }
+  #status.error { color: #dc2626; }
+  #widget { display: none; margin-top: 8px; }
+  #widget.visible { display: block; }
+  .hint { font-size: 12px; color: #94a3b8; margin-top: 16px; line-height: 1.4; }
+  a { color: var(--tg-theme-link-color, #3390ec); }
+</style>
 </head>
 <body>
+<div class="card">
+  <h1>TaskPi</h1>
+  <p id="lead">Signing you in…</p>
+  <div id="status"></div>
+  <div id="widget"></div>
+  <p class="hint" id="hint" hidden></p>
+</div>
 <script>
-(async function () {
-	  var app = window.Telegram && window.Telegram.WebApp;
-	  var ctx = ${JSON.stringify(ctxToken ?? "")};
-	  var returnTo = ${JSON.stringify(safeAppPath(returnTo))};
-  if (!app || !app.initData) {
-    document.body.textContent = "Open this app from Telegram.";
-    return;
+(function () {
+  var ctx = ${JSON.stringify(ctxToken ?? "")};
+  var returnTo = ${JSON.stringify(safeReturn)};
+  var botUsername = ${JSON.stringify(botUsername ?? "")};
+  var hasSession = ${JSON.stringify(hasSession)};
+  var statusEl = document.getElementById("status");
+  var leadEl = document.getElementById("lead");
+  var widgetEl = document.getElementById("widget");
+  var hintEl = document.getElementById("hint");
+
+  function setStatus(msg, isError) {
+    statusEl.textContent = msg || "";
+    statusEl.className = isError ? "error" : "";
   }
-  try {
-    var res = await fetch("/app/auth", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-	        initData: app.initData,
-	        ctx: ctx,
-	        returnTo: returnTo,
-      }),
-    });
-    if (!res.ok) {
-      var err = await res.json().catch(function () { return {}; });
-      document.body.textContent = err.error || "Authentication failed.";
+
+  function continueWithSession() {
+    window.location.replace(returnTo);
+  }
+
+  function showWebLogin(message) {
+    leadEl.textContent = message || "Sign in with Telegram to continue.";
+    setStatus("");
+    if (!botUsername) {
+      setStatus("Web login is not configured (missing BOT_USERNAME).", true);
+      hintEl.hidden = false;
+      hintEl.innerHTML = "Open the app from Telegram, or set <code>BOT_USERNAME</code> and authorize your domain with @BotFather → /setdomain.";
       return;
     }
-    var data = await res.json();
-    window.location.href = data.redirect;
-  } catch (e) {
-    document.body.textContent = "Connection error. Please try again.";
+    widgetEl.className = "visible";
+    widgetEl.innerHTML = "";
+    var s = document.createElement("script");
+    s.async = true;
+    s.src = "https://telegram.org/js/telegram-widget.js?22";
+    s.setAttribute("data-telegram-login", botUsername);
+    s.setAttribute("data-size", "large");
+    s.setAttribute("data-radius", "8");
+    s.setAttribute("data-request-access", "write");
+    s.setAttribute("data-onauth", "onTelegramAuth(user)");
+    widgetEl.appendChild(s);
+    hintEl.hidden = false;
+    hintEl.textContent = "Uses Telegram Login via @" + botUsername + ". Domain must be authorized in BotFather.";
   }
+
+  async function completeAuth(body) {
+    setStatus("Completing sign-in…");
+    try {
+      var res = await fetch(body.initData ? "/app/auth" : "/app/auth/web", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        var err = await res.json().catch(function () { return {}; });
+        setStatus(err.error || "Authentication failed.", true);
+        if (!body.initData) showWebLogin("Sign in with Telegram to continue.");
+        return;
+      }
+      var data = await res.json();
+      window.location.href = data.redirect;
+    } catch (e) {
+      setStatus("Connection error. Please try again.", true);
+      if (!body.initData) showWebLogin("Sign in with Telegram to continue.");
+    }
+  }
+
+  window.onTelegramAuth = function (user) {
+    completeAuth({
+      login: user,
+      ctx: ctx || undefined,
+      returnTo: returnTo,
+    });
+  };
+
+  (async function () {
+    var app = window.Telegram && window.Telegram.WebApp;
+    if (app && app.initData) {
+      try { app.ready && app.ready(); } catch (e) {}
+      await completeAuth({
+        initData: app.initData,
+        ctx: ctx || undefined,
+        returnTo: returnTo,
+      });
+      return;
+    }
+    // Outside Telegram WebApp: reuse cookie session when present,
+    // otherwise show Telegram Login Widget for browser access.
+    if (hasSession) {
+      continueWithSession();
+      return;
+    }
+    showWebLogin("Sign in with Telegram to continue.");
+  })();
 })();
 </script>
 </body>
@@ -211,6 +330,31 @@ function renderBootstrapPage(ctxToken: string | undefined, returnTo: string): Re
   return new Response(body, {
     headers: { "content-type": "text/html; charset=UTF-8" },
   });
+}
+
+function issueSessionAndRedirect(
+  c: any,
+  user: TelegramUser,
+  ctx: MiniAppContext | undefined,
+  ctxToken: string | undefined,
+  returnTo: string | undefined
+) {
+  setCookie(c, SESSION_COOKIE, createMiniAppSessionCookie(user), {
+    httpOnly: true,
+    secure: getEnvOptional("NODE_ENV") === "production",
+    sameSite: "Lax",
+    path: "/app",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  });
+
+  const redirectPath = ctx ? actionToPath(ctx) : safeAppPath(returnTo);
+  const separator = redirectPath.includes("?") ? "&" : "?";
+  return {
+    redirect:
+      ctx && ctxToken
+        ? `${redirectPath}${separator}ctx=${ctxToken}`
+        : redirectPath,
+  };
 }
 
 export function setActiveTeam(c: any, teamId: string): void {
@@ -248,17 +392,19 @@ export function requireMiniAppUser(): MiddlewareHandler<{
       Boolean(ctx)
     );
 
-    if (
-      refreshStandaloneIdentity ||
+    const needsSession =
       !sessionUser ||
-      (ctx && shouldBootstrapMiniAppSession(sessionUser.id, ctx.telegramUserId))
-    ) {
+      (ctx && shouldBootstrapMiniAppSession(sessionUser.id, ctx.telegramUserId));
+    // Menu launches re-read Telegram identity once; web browsers with a
+    // valid cookie skip the Login Widget via hasSession on the bootstrap page.
+    if (needsSession || refreshStandaloneIdentity) {
       if (refreshStandaloneIdentity) {
         requestUrl.searchParams.set("authenticated", "1");
       }
       return renderBootstrapPage(
         ctxToken,
-        `${requestUrl.pathname}${requestUrl.search}`
+        `${requestUrl.pathname}${requestUrl.search}`,
+        { hasSession: Boolean(sessionUser) && !needsSession }
       );
     }
 
@@ -293,6 +439,7 @@ export function requireMiniAppUser(): MiddlewareHandler<{
 import type { Hono } from "hono";
 
 export function setupAuthRoutes(app: Hono<any>) {
+  /** Mini App bootstrap: validates Telegram.WebApp.initData (HMAC WebAppData). */
   app.post("/auth", async (c) => {
     const body = await c.req.json<{
       initData: string;
@@ -321,23 +468,115 @@ export function setupAuthRoutes(app: Hono<any>) {
       );
     }
 
-    setCookie(c, SESSION_COOKIE, createMiniAppSessionCookie(result.user), {
-      httpOnly: true,
-      secure: getEnvOptional("NODE_ENV") === "production",
-      sameSite: "Lax",
-      path: "/app",
-      maxAge: SESSION_MAX_AGE_SECONDS,
+    return c.json(
+      issueSessionAndRedirect(c, result.user, ctx, body.ctx, body.returnTo)
+    );
+  });
+
+  /**
+   * Web browser login via Telegram Login Widget
+   * (https://core.telegram.org/widgets/login).
+   * Secret scheme: HMAC-SHA256(data, SHA256(bot_token)).
+   */
+  app.post("/auth/web", async (c) => {
+    const body = await c.req.json<{
+      login?: Record<string, unknown>;
+      ctx?: string;
+      returnTo?: string;
+    }>();
+
+    const ctx = body.ctx
+      ? verifySignedMiniAppContext(body.ctx)
+      : undefined;
+    if (body.ctx && !ctx) {
+      return c.json({ error: "Invalid or expired context" }, 403);
+    }
+
+    const login = body.login;
+    if (!login || typeof login !== "object") {
+      return c.json({ error: "Missing login payload" }, 400);
+    }
+
+    const botToken = getEnv("BOT_TOKEN");
+    const result = validateTelegramLoginWidget(login, botToken, {
+      maxAgeSeconds: LOGIN_WIDGET_MAX_AGE_SECONDS,
     });
 
-    const redirectPath = ctx
-      ? actionToPath(ctx)
-      : safeAppPath(body.returnTo);
-    const separator = redirectPath.includes("?") ? "&" : "?";
-    return c.json({
-      redirect: ctx && body.ctx
-        ? `${redirectPath}${separator}ctx=${body.ctx}`
-        : redirectPath,
+    if (!result.valid || !result.user) {
+      return c.json({ error: "Invalid Telegram login data" }, 403);
+    }
+
+    if (ctx && result.user.id !== ctx.telegramUserId) {
+      return c.json(
+        { error: "This action link belongs to another Telegram user." },
+        403
+      );
+    }
+
+    return c.json(
+      issueSessionAndRedirect(c, result.user, ctx, body.ctx, body.returnTo)
+    );
+  });
+
+  /**
+   * Redirect-mode Login Widget callback.
+   * Configure data-auth-url to /app/auth/web/callback (optional alternative to data-onauth).
+   */
+  app.get("/auth/web/callback", async (c) => {
+    const q = c.req.query();
+    const returnTo = q.returnTo;
+    const ctxToken = q.ctx;
+    const ctx = ctxToken
+      ? verifySignedMiniAppContext(ctxToken)
+      : undefined;
+    if (ctxToken && !ctx) {
+      return c.html(
+        `<!doctype html><html><body style="font-family:system-ui;padding:24px;text-align:center"><h2>Link expired</h2><p>Please open the link again.</p><a href="/app">Home</a></body></html>`,
+        403
+      );
+    }
+
+    const login: Record<string, string> = {};
+    for (const key of [
+      "id",
+      "first_name",
+      "last_name",
+      "username",
+      "photo_url",
+      "auth_date",
+      "hash",
+    ] as const) {
+      const value = q[key];
+      if (value !== undefined && value !== "") login[key] = value;
+    }
+
+    const botToken = getEnv("BOT_TOKEN");
+    const result = validateTelegramLoginWidget(login, botToken, {
+      maxAgeSeconds: LOGIN_WIDGET_MAX_AGE_SECONDS,
     });
+
+    if (!result.valid || !result.user) {
+      return c.html(
+        `<!doctype html><html><body style="font-family:system-ui;padding:24px;text-align:center"><h2>Sign-in failed</h2><p>Could not verify Telegram login.</p><a href="${safeAppPath(returnTo)}">Try again</a></body></html>`,
+        403
+      );
+    }
+
+    if (ctx && result.user.id !== ctx.telegramUserId) {
+      return c.html(
+        `<!doctype html><html><body style="font-family:system-ui;padding:24px;text-align:center"><h2>Wrong account</h2><p>This link belongs to another Telegram user.</p></body></html>`,
+        403
+      );
+    }
+
+    const { redirect } = issueSessionAndRedirect(
+      c,
+      result.user,
+      ctx,
+      ctxToken,
+      returnTo
+    );
+    return c.redirect(redirect);
   });
 }
 

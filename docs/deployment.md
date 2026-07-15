@@ -141,8 +141,11 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 |----------|---------|---------|
 | `MINIAPP_PORT` | HTTP listen port | `3002` |
 | `API_BASE_URL` | Internal API URL | `http://api:3001` |
-| `BOT_TOKEN` | Telegram bot token (for initData validation) | — |
+| `BOT_TOKEN` | Telegram bot token (initData + Login Widget validation) | — |
+| `BOT_USERNAME` | Bot username for Login Widget (browser web access) | — |
 | `MINIAPP_CONTEXT_SECRET` | Context token HMAC key | — |
+
+**Browser web access:** authorize your public domain with BotFather (`/setdomain`) so the Telegram Login Widget can sign users in at `/app` without opening Telegram’s WebView.
 
 ### Bot (`apps/bot`)
 
