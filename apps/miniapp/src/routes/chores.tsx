@@ -1,10 +1,12 @@
 import { Hono } from "hono";
 import {
   requireMiniAppUser,
+  setActiveTeam,
   type AppVariables,
 } from "../auth/requireMiniAppUser.js";
 import {
   listChores,
+  listMyChores,
   getChore,
   createChore,
   completeChore,
@@ -23,6 +25,12 @@ const choresRoutes = new Hono<{ Variables: AppVariables }>();
 
 choresRoutes.use("*", requireMiniAppUser());
 
+export type ChoresView = "mine" | "team";
+
+function parseView(raw: string | undefined | null): ChoresView {
+  return raw === "team" ? "team" : "mine";
+}
+
 function resolveTeam(c: any): {
   teamId: string | null;
   teamName?: string;
@@ -39,35 +47,57 @@ function resolveTeam(c: any): {
   };
 }
 
+function viewFromRequest(c: any, bodyView?: string): ChoresView {
+  return parseView(bodyView ?? c.req.query("view"));
+}
+
 async function loadMembers(
   teamId: string,
   userId: string
-): Promise<TeamMemberResponse[]> {
+): Promise<{ members: TeamMemberResponse[]; error?: string }> {
   try {
-    return await getTeamMembers(teamId, userId);
-  } catch {
-    return [];
+    return { members: await getTeamMembers(teamId, userId) };
+  } catch (err) {
+    return {
+      members: [],
+      error:
+        err instanceof Error
+          ? `Could not load members: ${err.message}`
+          : "Could not load team members",
+    };
   }
 }
 
 async function renderList(
   c: any,
-  opts?: { error?: string; success?: string }
+  opts?: { error?: string; success?: string; view?: ChoresView }
 ) {
   const apiUser = c.get("apiUser");
   const { teamId, teamName, teams } = resolveTeam(c);
-  if (!teamId) {
+  if (teams.length === 0) {
+    return c.redirect("/app/onboarding");
+  }
+
+  const view = opts?.view ?? viewFromRequest(c);
+
+  // Team board needs an active team
+  if (view === "team" && !teamId) {
     return c.redirect("/app/onboarding");
   }
 
   let chores: ChoreResponse[] = [];
   try {
-    chores = await listChores(teamId, apiUser.id);
+    if (view === "mine") {
+      chores = await listMyChores(apiUser.id);
+    } else {
+      chores = await listChores(teamId!, apiUser.id);
+    }
   } catch (err) {
     return c.render(
       <ChoresPage
         chores={[]}
-        teamId={teamId}
+        view={view}
+        teamId={teamId ?? undefined}
         teamName={teamName}
         teams={teams}
         currentUserId={apiUser.id}
@@ -79,7 +109,8 @@ async function renderList(
   return c.render(
     <ChoresPage
       chores={chores}
-      teamId={teamId}
+      view={view}
+      teamId={teamId ?? undefined}
       teamName={teamName}
       teams={teams}
       currentUserId={apiUser.id}
@@ -92,18 +123,21 @@ async function renderList(
 function renderNew(
   c: any,
   members: TeamMemberResponse[],
-  error?: string
+  formTeamId: string,
+  formTeamName: string | undefined,
+  opts?: { error?: string; membersError?: string }
 ) {
   const apiUser = c.get("apiUser");
-  const { teamId, teamName, teams } = resolveTeam(c);
+  const { teams } = resolveTeam(c);
   return c.render(
     <NewChorePage
-      teamId={teamId!}
-      teamName={teamName}
+      teamId={formTeamId}
+      teamName={formTeamName}
       teams={teams}
       members={members}
       currentUserId={apiUser.id}
-      error={error}
+      error={opts?.error}
+      membersError={opts?.membersError}
     />
   );
 }
@@ -176,22 +210,54 @@ function parseReminderBody(body: {
   };
 }
 
+/** Default list: Mine across teams. */
 choresRoutes.get("/chores", async (c) => renderList(c));
 
+/**
+ * New chore.
+ * - Multi-team without ?teamId → team picker
+ * - Single team or ?teamId= → form
+ */
 choresRoutes.get("/chores/new", async (c) => {
   const apiUser = c.get("apiUser");
-  const { teamId } = resolveTeam(c);
-  if (!teamId) return c.redirect("/app/onboarding");
-  const members = await loadMembers(teamId, apiUser.id);
-  return renderNew(c, members);
+  const { teamId, teamName, teams } = resolveTeam(c);
+  if (teams.length === 0) return c.redirect("/app/onboarding");
+
+  const requestedTeamId = c.req.query("teamId");
+  const formTeam =
+    (requestedTeamId
+      ? teams.find((t) => t.id === requestedTeamId)
+      : null) ?? (teams.length === 1 ? teams[0] : null);
+
+  if (!formTeam) {
+    // Multi-team: pick a workspace first
+    return c.render(
+      <NewChorePage
+        teamId=""
+        teams={teams}
+        members={[]}
+        currentUserId={apiUser.id}
+        pickTeam
+      />
+    );
+  }
+
+  const { members, error: membersError } = await loadMembers(
+    formTeam.id,
+    apiUser.id
+  );
+  return renderNew(c, members, formTeam.id, formTeam.name ?? teamName, {
+    membersError,
+  });
 });
 
 choresRoutes.post("/chores", async (c) => {
   const apiUser = c.get("apiUser");
-  const { teamId } = resolveTeam(c);
-  if (!teamId) return c.redirect("/app/onboarding");
+  const { teams } = resolveTeam(c);
+  if (teams.length === 0) return c.redirect("/app/onboarding");
 
   const body = await c.req.parseBody<{
+    teamId?: string;
     title: string;
     description?: string;
     assigneeUserId: string;
@@ -200,21 +266,46 @@ choresRoutes.post("/chores", async (c) => {
     nextDueAt?: string;
     notifyEnabled?: string;
     remindOffsetMinutes?: string;
+    view?: string;
   }>();
 
+  const formTeamId = body.teamId?.trim() || resolveTeam(c).teamId;
+  const formTeam = teams.find((t) => t.id === formTeamId);
+  if (!formTeamId || !formTeam) {
+    return c.render(
+      <NewChorePage
+        teamId=""
+        teams={teams}
+        members={[]}
+        currentUserId={apiUser.id}
+        pickTeam
+        error="Choose a team for this chore"
+      />
+    );
+  }
+
+  const { members, error: membersError } = await loadMembers(
+    formTeamId,
+    apiUser.id
+  );
+
   if (!body.title?.trim() || !body.assigneeUserId) {
-    const members = await loadMembers(teamId, apiUser.id);
-    return renderNew(c, members, "Title and assignee are required");
+    return renderNew(c, members, formTeamId, formTeam.name, {
+      error: "Title and assignee are required",
+      membersError,
+    });
   }
 
   const reminder = parseReminderBody(body);
   if (reminder.error) {
-    const members = await loadMembers(teamId, apiUser.id);
-    return renderNew(c, members, reminder.error);
+    return renderNew(c, members, formTeamId, formTeam.name, {
+      error: reminder.error,
+      membersError,
+    });
   }
 
   try {
-    await createChore(teamId, apiUser.id, {
+    await createChore(formTeamId, apiUser.id, {
       title: body.title.trim(),
       description: body.description?.trim() || null,
       assigneeUserId: body.assigneeUserId,
@@ -224,50 +315,64 @@ choresRoutes.post("/chores", async (c) => {
       notifyEnabled: reminder.notifyEnabled,
       remindOffsetMinutes: reminder.remindOffsetMinutes,
     });
-    return renderList(c, { success: "Chore created" });
+    setActiveTeam(c, formTeamId);
+    // After create, show team board so the new chore is visible even if assigned to someone else
+    return renderList(c, { success: "Chore created", view: "team" });
   } catch (err) {
-    const members = await loadMembers(teamId, apiUser.id);
-    return renderNew(
-      c,
-      members,
-      err instanceof Error ? err.message : "Failed to create chore"
-    );
+    return renderNew(c, members, formTeamId, formTeam.name, {
+      error: err instanceof Error ? err.message : "Failed to create chore",
+      membersError,
+    });
   }
 });
 
 choresRoutes.get("/chores/:id/edit", async (c) => {
   const apiUser = c.get("apiUser");
-  const { teamId, teamName, teams } = resolveTeam(c);
-  if (!teamId) return c.redirect("/app/onboarding");
+  const { teams } = resolveTeam(c);
+  if (teams.length === 0) return c.redirect("/app/onboarding");
   const { id } = c.req.param();
+  const returnView = viewFromRequest(c);
 
   try {
     const chore = await getChore(id, apiUser.id);
     if (!chore) {
-      return renderList(c, { error: "Chore not found" });
+      return renderList(c, { error: "Chore not found", view: returnView });
     }
-    const members = await loadMembers(teamId, apiUser.id);
+    const choreTeam = teams.find((t) => t.id === chore.teamId);
+    if (!choreTeam) {
+      return renderList(c, {
+        error: "You no longer have access to that chore’s team.",
+        view: returnView,
+      });
+    }
+    const { members, error: membersError } = await loadMembers(
+      chore.teamId,
+      apiUser.id
+    );
     return c.render(
       <EditChorePage
         chore={chore}
-        teamId={teamId}
-        teamName={teamName}
+        teamId={chore.teamId}
+        teamName={choreTeam.name}
         teams={teams}
         members={members}
         currentUserId={apiUser.id}
+        membersError={membersError}
+        returnView={returnView}
       />
     );
   } catch (err) {
     return renderList(c, {
       error: err instanceof Error ? err.message : "Failed to load chore",
+      view: returnView,
     });
   }
 });
 
 choresRoutes.post("/chores/:id/edit", async (c) => {
   const apiUser = c.get("apiUser");
-  const { teamId, teamName, teams } = resolveTeam(c);
-  if (!teamId) return c.redirect("/app/onboarding");
+  const { teams } = resolveTeam(c);
+  if (teams.length === 0) return c.redirect("/app/onboarding");
   const { id } = c.req.param();
 
   const body = await c.req.parseBody<{
@@ -279,26 +384,45 @@ choresRoutes.post("/chores/:id/edit", async (c) => {
     nextDueAt?: string;
     notifyEnabled?: string;
     remindOffsetMinutes?: string;
+    view?: string;
   }>();
+
+  const returnView = viewFromRequest(c, body.view);
 
   const loadEditError = async (error: string) => {
     try {
       const chore = await getChore(id, apiUser.id);
-      if (!chore) return renderList(c, { error: "Chore not found" });
-      const members = await loadMembers(teamId, apiUser.id);
+      if (!chore) return renderList(c, { error: "Chore not found", view: returnView });
+      const choreTeam = teams.find((t) => t.id === chore.teamId);
+      if (!choreTeam) {
+        return renderList(c, {
+          error: "You no longer have access to that chore’s team.",
+          view: returnView,
+        });
+      }
+      const { members, error: membersError } = await loadMembers(
+        chore.teamId,
+        apiUser.id
+      );
       return c.render(
         <EditChorePage
           chore={chore}
-          teamId={teamId}
-          teamName={teamName}
+          teamId={chore.teamId}
+          teamName={choreTeam.name}
           teams={teams}
           members={members}
           currentUserId={apiUser.id}
           error={error}
+          membersError={membersError}
+          returnView={returnView}
         />
       );
-    } catch {
-      return renderList(c, { error });
+    } catch (err) {
+      return renderList(c, {
+        error:
+          err instanceof Error ? `${error} · ${err.message}` : error,
+        view: returnView,
+      });
     }
   };
 
@@ -312,6 +436,15 @@ choresRoutes.post("/chores/:id/edit", async (c) => {
   }
 
   try {
+    const existing = await getChore(id, apiUser.id);
+    if (!existing) return renderList(c, { error: "Chore not found", view: returnView });
+    if (!teams.some((t) => t.id === existing.teamId)) {
+      return renderList(c, {
+        error: "You no longer have access to that chore’s team.",
+        view: returnView,
+      });
+    }
+
     await updateChore(id, apiUser.id, {
       title: body.title.trim(),
       description: body.description?.trim() || null,
@@ -322,7 +455,7 @@ choresRoutes.post("/chores/:id/edit", async (c) => {
       notifyEnabled: reminder.notifyEnabled,
       remindOffsetMinutes: reminder.remindOffsetMinutes,
     });
-    return renderList(c, { success: "Chore updated" });
+    return renderList(c, { success: "Chore updated", view: returnView });
   } catch (err) {
     return loadEditError(
       err instanceof Error ? err.message : "Failed to update chore"
@@ -330,46 +463,93 @@ choresRoutes.post("/chores/:id/edit", async (c) => {
   }
 });
 
+async function actionThenList(
+  c: any,
+  run: () => Promise<void>,
+  success: string,
+  fail: string
+) {
+  let bodyView: string | undefined;
+  try {
+    const body = (await c.req.parseBody()) as { view?: string };
+    bodyView = typeof body.view === "string" ? body.view : undefined;
+  } catch {
+    bodyView = undefined;
+  }
+  const view = viewFromRequest(c, bodyView);
+  try {
+    await run();
+    return renderList(c, { success, view });
+  } catch (err) {
+    return renderList(c, {
+      error: err instanceof Error ? err.message : fail,
+      view,
+    });
+  }
+}
+
 choresRoutes.post("/chores/:id/complete", async (c) => {
   const apiUser = c.get("apiUser");
   const { id } = c.req.param();
-  try {
-    await completeChore(id, apiUser.id);
-    return renderList(c, { success: "Chore marked done — next due updated" });
-  } catch (err) {
-    return renderList(c, {
-      error: err instanceof Error ? err.message : "Could not complete chore",
-    });
-  }
+  return actionThenList(
+    c,
+    () => completeChore(id, apiUser.id).then(() => undefined),
+    "Chore marked done — next due updated",
+    "Could not complete chore"
+  );
 });
 
 choresRoutes.post("/chores/:id/pause", async (c) => {
   const apiUser = c.get("apiUser");
   const { id } = c.req.param();
-  try {
-    await pauseChore(id, apiUser.id);
-    return renderList(c, { success: "Chore paused" });
-  } catch (err) {
-    return renderList(c, {
-      error: err instanceof Error ? err.message : "Could not pause chore",
-    });
-  }
+  return actionThenList(
+    c,
+    () => pauseChore(id, apiUser.id).then(() => undefined),
+    "Chore paused",
+    "Could not pause chore"
+  );
 });
 
 choresRoutes.post("/chores/:id/resume", async (c) => {
   const apiUser = c.get("apiUser");
   const { id } = c.req.param();
+  return actionThenList(
+    c,
+    () => updateChore(id, apiUser.id, { active: true }).then(() => undefined),
+    "Chore resumed",
+    "Could not resume chore"
+  );
+});
+
+/**
+ * Deep link /app/chores/:id → edit (any team the user belongs to).
+ */
+choresRoutes.get("/chores/:id", async (c) => {
+  const apiUser = c.get("apiUser");
+  const { teams } = resolveTeam(c);
+  if (teams.length === 0) return c.redirect("/app/onboarding");
+  const { id } = c.req.param();
+  const returnView = viewFromRequest(c);
+
   try {
-    await updateChore(id, apiUser.id, { active: true });
-    return renderList(c, { success: "Chore resumed" });
+    const chore = await getChore(id, apiUser.id);
+    if (!chore) {
+      return renderList(c, { error: "Chore not found", view: returnView });
+    }
+    if (!teams.some((t) => t.id === chore.teamId)) {
+      return renderList(c, {
+        error: "You no longer have access to that chore’s team.",
+        view: returnView,
+      });
+    }
+    const q = returnView === "team" ? "?view=team" : "?view=mine";
+    return c.redirect(`/app/chores/${id}/edit${q}`);
   } catch (err) {
     return renderList(c, {
-      error: err instanceof Error ? err.message : "Could not resume chore",
+      error: err instanceof Error ? err.message : "Failed to open chore",
+      view: returnView,
     });
   }
 });
-
-// Deep link /app/chores/:id → list (prefer /edit for management)
-choresRoutes.get("/chores/:id", async (c) => renderList(c));
 
 export { choresRoutes };

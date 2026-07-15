@@ -17,6 +17,8 @@ export const EditChorePage: FC<{
   members?: TeamMemberResponse[];
   currentUserId?: string;
   error?: string;
+  membersError?: string;
+  returnView?: "mine" | "team";
 }> = ({
   chore,
   teamId,
@@ -25,7 +27,12 @@ export const EditChorePage: FC<{
   members = [],
   currentUserId,
   error,
+  membersError,
+  returnView = "mine",
 }) => {
+  const backHref =
+    returnView === "team" ? "/app/chores?view=team" : "/app/chores?view=mine";
+
   return (
     <div class="chores-page">
       <MiniAppNav
@@ -35,7 +42,7 @@ export const EditChorePage: FC<{
         current="chores"
       />
 
-      <a href="/app/chores" class="back-link">
+      <a href={backHref} class="back-link">
         &larr; Back to chores
       </a>
 
@@ -51,9 +58,22 @@ export const EditChorePage: FC<{
 
       <div class="card" style="border-left: 4px solid #0d9488;">
         <form method="post" action={`/app/chores/${chore.id}/edit`}>
+          <input type="hidden" name="view" value={returnView} />
           {error && (
-            <p style="color: var(--tg-theme-destructive-text-color, #dc2626); margin-bottom: 12px; font-size: 14px;">
-              {error}
+            <div class="chore-flash chore-flash--error" role="alert">
+              <span aria-hidden="true">⚠</span>
+              <span>{error}</span>
+            </div>
+          )}
+          {membersError && (
+            <div class="chore-flash chore-flash--error" role="alert">
+              <span aria-hidden="true">👤</span>
+              <span>{membersError}</span>
+            </div>
+          )}
+          {teamName && (
+            <p class="page-summary" style="margin-bottom: 12px;">
+              Team: <strong>{teamName}</strong>
             </p>
           )}
 

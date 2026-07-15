@@ -9,6 +9,7 @@ process.env.MINIAPP_CONTEXT_SECRET = "test-context-secret";
 const {
   buildMembershipActionButtons,
   formatMessage,
+  formatCommentSnippet,
   isMembershipReadyEvent,
   isPermanentDeliveryFailure,
 } = await import("./poller.js");
@@ -43,6 +44,34 @@ test("approved join confirmation explains the newly available menus", () => {
   assert.match(message, /keyboard below/);
   assert.match(message, /Operations &amp; Support/);
   assert.match(message, /Admin &lt;One&gt;/);
+});
+
+test("task_commented escapes HTML and truncates long comment bodies", () => {
+  const long = "x".repeat(500);
+  const message = formatMessage("task_commented", {
+    taskTitle: "Fix <parser> & ship",
+    teamName: "Ops & Support",
+    actorName: "Bob <dev>",
+    commentBody: `Hello <script> & co — ${long}`,
+    taskId: "task-1",
+    teamId: "team-1",
+  });
+
+  assert.match(message, /New comment on task/);
+  assert.match(message, /Fix &lt;parser&gt; &amp; ship/);
+  assert.match(message, /Ops &amp; Support/);
+  assert.match(message, /Bob &lt;dev&gt;/);
+  assert.match(message, /Hello &lt;script&gt; &amp; co/);
+  assert.doesNotMatch(message, /<script>/);
+  // Truncated preview ends with ellipsis after escape of clipped plain text
+  assert.match(message, /…/);
+  assert.ok(message.length < 900);
+});
+
+test("formatCommentSnippet truncates then escapes", () => {
+  assert.equal(formatCommentSnippet("a < b"), "a &lt; b");
+  assert.equal(formatCommentSnippet("x".repeat(10), 5), "xxxxx…");
+  assert.equal(formatCommentSnippet("   "), "");
 });
 
 test("permanent delivery failures include blocked users and missing chats", () => {

@@ -55,6 +55,16 @@ Coolify's Traefik handles TLS and routing. Configure path-based routing in the C
 - `https://your-domain.com/telegram/webhook` → `bot` service (port 3000)
 - `https://your-domain.com/*` → `miniapp` service (port 3002)
 
+**Public URLs (same host):**
+
+| URL | What users get |
+|-----|----------------|
+| `https://your-domain.com/` | Branded landing + optional Login Widget |
+| `https://your-domain.com/app` | Product UI (auth, boards, tasks). Bot menu / web_app links use this path |
+| `https://your-domain.com/health` | Health JSON |
+
+`MINIAPP_BASE_URL` is the **origin only** (no `/app`). The bot appends `/app` when building Mini App links.
+
 ### 4. Set environment variables
 
 In Coolify's environment variables UI for this service, add:
@@ -142,10 +152,14 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 | `MINIAPP_PORT` | HTTP listen port | `3002` |
 | `API_BASE_URL` | Internal API URL | `http://api:3001` |
 | `BOT_TOKEN` | Telegram bot token (initData + Login Widget validation) | — |
-| `BOT_USERNAME` | Bot username for Login Widget (browser web access) | — |
+| `BOT_USERNAME` | Bot username for Login Widget (browser web access); pass into miniapp container | — |
 | `MINIAPP_CONTEXT_SECRET` | Context token HMAC key | — |
 
-**Browser web access:** authorize your public domain with BotFather (`/setdomain`) so the Telegram Login Widget can sign users in at `/app` without opening Telegram’s WebView.
+**Browser web access:**
+
+1. Set `BOT_USERNAME` (no `@`) on the **miniapp** service (compose passes it through).
+2. Authorize the public host with BotFather (`/setdomain`) — host only, no path.
+3. Open `https://your-domain.com/` (landing) or `/app` (app) and use **Log in with Telegram**.
 
 ### Bot (`apps/bot`)
 

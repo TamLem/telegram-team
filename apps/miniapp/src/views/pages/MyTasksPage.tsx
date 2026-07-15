@@ -32,12 +32,9 @@ export const MyTasksPage: FC<{
         current="mytasks"
       />
 
-      <div class="header">
-        <h1>My Tasks</h1>
-        <p class="card-subtitle">
-          Open work across all your teams ({openTasks.length})
-        </p>
-      </div>
+      <p class="page-summary">
+        Open work across all your teams · <strong>{openTasks.length}</strong>
+      </p>
 
       {openTasks.length === 0 ? (
         <EmptyState

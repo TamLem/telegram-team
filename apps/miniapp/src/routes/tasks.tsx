@@ -286,7 +286,23 @@ tasksRoutes.post("/tasks/:id/comment", async (c) => {
     );
   }
 
-  await addTaskComment(id, body.body.trim(), apiUser.id);
+  try {
+    await addTaskComment(id, body.body.trim(), apiUser.id);
+  } catch (err) {
+    const comments = await getTaskComments(task.id, apiUser.id).catch(() => []);
+    const events = await getTaskEvents(task.id, apiUser.id).catch(() => []);
+    return c.render(
+      <TaskDetailPage
+        task={task}
+        comments={comments}
+        events={events}
+        ctx={ctxQuery}
+        commentError={
+          err instanceof Error ? err.message : "Failed to post comment"
+        }
+      />
+    );
+  }
 
   return c.render(
     <SuccessPage

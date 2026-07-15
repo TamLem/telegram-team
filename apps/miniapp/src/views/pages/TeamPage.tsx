@@ -31,20 +31,19 @@ export const TeamPage: FC<{
         current="team"
       />
 
-      {team.id ? (
-        <a href={`/app/board/${team.id}${ctxQuery}`} class="back-link">
-          &larr; Back
-        </a>
-      ) : null}
-
-      <div class="header">
-        <h1>{team.name}</h1>
-        {error && (
-          <p style="color: var(--tg-theme-destructive-text-color, #dc2626); margin-top: 8px; font-size: 14px;">
-            {error}
-          </p>
-        )}
-      </div>
+      {error && (
+        <p class="page-summary" style="color: var(--tg-theme-destructive-text-color, #dc2626);">
+          {error}
+        </p>
+      )}
+      {!error && (
+        <p class="page-summary">
+          {memberCount} member{memberCount === 1 ? "" : "s"}
+          {pendingRequestCount > 0
+            ? ` · ${pendingRequestCount} pending request${pendingRequestCount === 1 ? "" : "s"}`
+            : ""}
+        </p>
+      )}
 
       {team.id ? (
         <>

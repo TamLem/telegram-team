@@ -193,6 +193,14 @@ export async function listTeamChores(
   return res.chores;
 }
 
+/** Active chores assigned to this user across all teams. */
+export async function listMyChores(userId: string): Promise<ChoreItem[]> {
+  const res = await apiFetch<{ chores: ChoreItem[] }>("/api/chores/mine", {
+    headers: { "X-User-Id": userId },
+  });
+  return res.chores;
+}
+
 export interface MyTaskSummary {
   todo: number;
   doing: number;

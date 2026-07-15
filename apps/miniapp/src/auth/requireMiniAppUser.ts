@@ -24,6 +24,8 @@ export interface AppVariables {
 
 const SESSION_COOKIE = "ttp_session";
 const ACTIVE_TEAM_COOKIE = "ttp_active_team";
+/** Cookie path is `/` so origin landing (`/`) can detect an existing session. */
+const COOKIE_PATH = "/";
 const SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
 const ACTIVE_TEAM_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 /** Login Widget auth_date max age (Telegram recommends checking freshness). */
@@ -343,7 +345,7 @@ function issueSessionAndRedirect(
     httpOnly: true,
     secure: getEnvOptional("NODE_ENV") === "production",
     sameSite: "Lax",
-    path: "/app",
+    path: COOKIE_PATH,
     maxAge: SESSION_MAX_AGE_SECONDS,
   });
 
@@ -362,7 +364,7 @@ export function setActiveTeam(c: any, teamId: string): void {
     httpOnly: true,
     secure: getEnvOptional("NODE_ENV") === "production",
     sameSite: "Lax",
-    path: "/app",
+    path: COOKIE_PATH,
     maxAge: ACTIVE_TEAM_MAX_AGE_SECONDS,
   });
   c.set("activeTeamId", teamId);
@@ -615,12 +617,22 @@ function actionToPath(ctx: MiniAppContext): string {
     case "view_blocked_tasks":
       return `/app/board/${ctx.teamId}?status=blocked`;
     case "view_chores":
-      return "/app/chores";
+      // Team-scoped bot/menu links open the team board; default tab is Mine.
+      return ctx.teamId ? "/app/chores?view=team" : "/app/chores?view=mine";
     case "view_chore":
-      return ctx.choreId ? `/app/chores/${ctx.choreId}` : "/app/chores";
+      return ctx.choreId
+        ? `/app/chores/${ctx.choreId}?view=mine`
+        : "/app/chores?view=mine";
     default:
       return `/app/board/${ctx.teamId}?assignee=me`;
   }
+}
+
+/** Read a valid session user from the raw `ttp_session` cookie value (if any). */
+export function peekMiniAppSession(
+  cookie: string | undefined
+): TelegramUser | null {
+  return readMiniAppSessionCookie(cookie);
 }
 
 export {

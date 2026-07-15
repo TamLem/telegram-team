@@ -91,12 +91,17 @@ export const BoardPage: FC<{
         current="board"
       />
 
-      <div class="header">
-        <h1>
-          {filterAssignee === "me" ? "My Tasks" : "Task Board"}
+      {filterAssignee === "me" ? (
+        <p class="page-summary">
+          Filtered to <strong>my tasks</strong>
+          {teamName ? ` on ${teamName}` : ""}
+        </p>
+      ) : (
+        <p class="page-summary">
+          {totalTasks} task{totalTasks === 1 ? "" : "s"}
           {teamName ? ` · ${teamName}` : ""}
-        </h1>
-      </div>
+        </p>
+      )}
 
       {/* Filters row */}
       <div style="display:flex;gap:8px;margin-bottom:12px">

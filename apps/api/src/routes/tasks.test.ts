@@ -432,6 +432,103 @@ test("team member can add and view comments", async () => {
   assert.ok(listBody.comments.length >= 1);
 });
 
+test("commenting notifies creator and assignee but not the commenter", async () => {
+  const aliceId = await createUser(1701, "AliceComment");
+  const bobId = await createUser(1702, "BobComment");
+
+  const teamRes = await app.request("/api/teams", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": aliceId },
+    body: JSON.stringify({ name: "Comment Notify Team" }),
+  });
+  const team = (await teamRes.json() as any).team;
+
+  const joinRes = await app.request("/api/teams/join", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": bobId },
+    body: JSON.stringify({ inviteCode: team.inviteCode }),
+  });
+  assert.equal(joinRes.status, 201);
+  const joinRequest = (await joinRes.json() as any).request;
+
+  const approveRes = await app.request(
+    `/api/teams/${team.id}/join-requests/${joinRequest.id}/approve`,
+    { method: "POST", headers: { "X-User-Id": aliceId } }
+  );
+  assert.equal(approveRes.status, 200);
+
+  // Alice creates task assigned to Bob
+  const taskRes = await app.request("/api/tasks", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-User-Id": aliceId,
+      "X-Team-Id": team.id,
+    },
+    body: JSON.stringify({
+      title: "Notify on comment",
+      assignedToUserId: bobId,
+      priority: "normal",
+    }),
+  });
+  assert.equal(taskRes.status, 201);
+  const task = (await taskRes.json() as any).task;
+
+  // Clear task_created / task_assigned noise for this task
+  const db = getDb();
+  await db.delete(notifications).where(eq(notifications.taskId, task.id));
+
+  // Bob comments → Alice (creator) should be notified; Bob (commenter) should not
+  const commentRes = await app.request(`/api/tasks/${task.id}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": bobId },
+    body: JSON.stringify({ body: "Looks good <ship it>" }),
+  });
+  assert.equal(commentRes.status, 201);
+
+  const notifs = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.taskId, task.id));
+
+  const commentNotifs = notifs.filter((n) => n.eventType === "task_commented");
+  assert.equal(commentNotifs.length, 1);
+  assert.equal(commentNotifs[0].recipientUserId, aliceId);
+  assert.equal(commentNotifs[0].actorUserId, bobId);
+  assert.equal(commentNotifs[0].deliveredAt, null);
+
+  const payload = JSON.parse(commentNotifs[0].payload ?? "{}") as {
+    commentBody?: string;
+    taskTitle?: string;
+    taskId?: string;
+    teamId?: string;
+  };
+  assert.equal(payload.commentBody, "Looks good <ship it>");
+  assert.equal(payload.taskTitle, "Notify on comment");
+  assert.equal(payload.taskId, task.id);
+  assert.equal(payload.teamId, team.id);
+
+  // Alice comments → Bob (assignee) notified, Alice not
+  await db.delete(notifications).where(eq(notifications.taskId, task.id));
+  const aliceComment = await app.request(`/api/tasks/${task.id}/comments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-User-Id": aliceId },
+    body: JSON.stringify({ body: "Thanks Bob" }),
+  });
+  assert.equal(aliceComment.status, 201);
+
+  const afterAlice = await db
+    .select()
+    .from(notifications)
+    .where(eq(notifications.taskId, task.id));
+  const aliceCommentNotifs = afterAlice.filter(
+    (n) => n.eventType === "task_commented"
+  );
+  assert.equal(aliceCommentNotifs.length, 1);
+  assert.equal(aliceCommentNotifs[0].recipientUserId, bobId);
+  assert.equal(aliceCommentNotifs[0].actorUserId, aliceId);
+});
+
 // ─── Activity events ──────────────────────────────────────────────────
 
 test("task events are recorded on status change", async () => {

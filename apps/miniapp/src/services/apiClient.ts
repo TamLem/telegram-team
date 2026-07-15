@@ -88,6 +88,43 @@ export interface JoinRequestResponse {
   reviewedByUserId: string | null;
 }
 
+/** Normalize API error bodies (string `error`, Zod issues, etc.) into a message. */
+export function formatApiErrorBody(body: unknown, status: number): string {
+  if (body && typeof body === "object") {
+    const b = body as Record<string, unknown>;
+    if (typeof b.error === "string" && b.error.trim()) {
+      return b.error;
+    }
+    // Zod / hono default shapes
+    const nested = b.error;
+    if (nested && typeof nested === "object") {
+      const issues = (nested as { issues?: Array<{ message?: string }> }).issues;
+      if (Array.isArray(issues) && issues.length > 0) {
+        return issues
+          .map((i) => i.message)
+          .filter(Boolean)
+          .join("; ");
+      }
+    }
+    if (Array.isArray(b.issues) && b.issues.length > 0) {
+      return (b.issues as Array<{ message?: string }>)
+        .map((i) => i.message)
+        .filter(Boolean)
+        .join("; ");
+    }
+  }
+  return `API error: ${status}`;
+}
+
+export class ApiHttpError extends Error {
+  readonly status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiHttpError";
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(
   path: string,
   options?: RequestInit
@@ -101,8 +138,8 @@ async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(err.error ?? `API error: ${res.status}`);
+    const body = await res.json().catch(() => ({}));
+    throw new ApiHttpError(formatApiErrorBody(body, res.status), res.status);
   }
 
   return res.json() as Promise<T>;
@@ -518,6 +555,11 @@ export async function listMyChores(userId: string): Promise<ChoreResponse[]> {
   return res.chores;
 }
 
+/**
+ * Fetch a chore by id.
+ * - Returns `null` only for HTTP 404 (missing chore).
+ * - Throws `ApiHttpError` (or Error) for 401/403/5xx so callers can surface real failures.
+ */
 export async function getChore(
   choreId: string,
   userId: string
@@ -528,8 +570,11 @@ export async function getChore(
       { headers: { "X-User-Id": userId } }
     );
     return res.chore;
-  } catch {
-    return null;
+  } catch (err) {
+    if (err instanceof ApiHttpError && err.status === 404) {
+      return null;
+    }
+    throw err;
   }
 }
 

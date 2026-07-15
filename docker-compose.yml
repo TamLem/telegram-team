@@ -36,6 +36,8 @@ services:
       MINIAPP_PORT: "3002"
       API_BASE_URL: http://api:3001
       BOT_TOKEN: ${BOT_TOKEN:?BOT_TOKEN is required}
+      # Required for Telegram Login Widget on browser entry (/ and /app bootstrap)
+      BOT_USERNAME: ${BOT_USERNAME:-}
       MINIAPP_CONTEXT_SECRET: ${MINIAPP_CONTEXT_SECRET:?MINIAPP_CONTEXT_SECRET is required}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3002/health"]

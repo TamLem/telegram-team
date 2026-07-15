@@ -84,13 +84,32 @@ function formatDueDate(dateString: string | null | undefined): string {
   return dayLabel;
 }
 
+/** Max comment length in Telegram HTML messages (keeps under API limits). */
+const COMMENT_NOTIFY_MAX_CHARS = 400;
+
 function teamLine(payload: NotificationPayload): string {
   return payload.teamName ? `\nTeam: ${escapeHtml(payload.teamName)}` : "";
 }
 
+/** Truncate plain text for notification previews, then escape for HTML. */
+function formatCommentSnippet(
+  body: string | undefined | null,
+  maxChars = COMMENT_NOTIFY_MAX_CHARS
+): string {
+  const raw = (body ?? "").trim();
+  if (!raw) return "";
+  const clipped =
+    raw.length > maxChars ? `${raw.slice(0, maxChars).trimEnd()}…` : raw;
+  return escapeHtml(clipped);
+}
+
 function formatMessage(eventType: string, payload: NotificationPayload): string {
-  const title = payload.taskTitle ?? "Unknown task";
+  const title = escapeHtml(payload.taskTitle ?? "Unknown task");
   const team = teamLine(payload);
+  const actor = escapeHtml(payload.actorName ?? "Someone");
+  const assignee = payload.assigneeName
+    ? escapeHtml(payload.assigneeName)
+    : "Unassigned";
 
   switch (eventType) {
     case "task_created":
@@ -99,7 +118,7 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         `Task: ${title}${team}\n` +
         `Status: ${STATUS_LABELS[payload.taskStatus ?? ""] ?? payload.taskStatus ?? "Todo"}\n` +
         `Priority: ${PRIORITY_LABELS[payload.taskPriority ?? ""] ?? payload.taskPriority ?? "Normal"}\n` +
-        `Assignee: ${payload.assigneeName ?? "Unassigned"}`
+        `Assignee: ${assignee}`
       );
 
     case "task_assigned":
@@ -117,12 +136,14 @@ function formatMessage(eventType: string, payload: NotificationPayload): string 
         team
       );
 
-    case "task_commented":
+    case "task_commented": {
+      const snippet = formatCommentSnippet(payload.commentBody);
       return (
         `<b>New comment on task</b>\n\n` +
         `Task: ${title}${team}\n` +
-        `${payload.actorName ?? "Someone"}: ${payload.commentBody ?? ""}`
+        `${actor}: ${snippet}`
       );
+    }
 
     case "task_blocked":
       return (
@@ -510,6 +531,7 @@ export {
   buildMembershipActionButtons,
   formatMessage,
   isMembershipReadyEvent,
+  formatCommentSnippet,
 };
 
 export class NotificationPoller {

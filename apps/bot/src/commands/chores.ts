@@ -1,6 +1,11 @@
 import type { BotContext } from "@telegram-team/bot-engine";
 import type { InlineKeyboardMarkup } from "@telegram-team/bot-engine";
-import { syncUser, listTeamChores, type ChoreItem } from "../apiClient.js";
+import {
+  syncUser,
+  listTeamChores,
+  listMyChores,
+  type ChoreItem,
+} from "../apiClient.js";
 import { escapeHtml } from "../telegram/html.js";
 import { getEnv } from "@telegram-team/config";
 import { miniAppContextUrl } from "../telegram/webApp.js";
@@ -53,50 +58,72 @@ export async function choresCommand(
     return;
   }
 
-  let chores: ChoreItem[] = [];
+  let mine: ChoreItem[] = [];
+  let teamChores: ChoreItem[] = [];
   try {
-    chores = await listTeamChores(team.id, apiUser.id);
+    [mine, teamChores] = await Promise.all([
+      listMyChores(apiUser.id),
+      listTeamChores(team.id, apiUser.id),
+    ]);
   } catch {
     await ctx.reply("Could not load chores. Try again later.");
     return;
   }
 
-  const active = chores.filter((c) => c.active === 1);
   const now = new Date().toISOString();
-  const due = active.filter((c) => c.nextDueAt <= now);
-  const upcoming = active.filter((c) => c.nextDueAt > now).slice(0, 5);
+  const myDue = mine.filter((c) => c.nextDueAt <= now);
+  const myUpcoming = mine
+    .filter((c) => c.nextDueAt > now)
+    .slice(0, 5);
+  const teamActive = teamChores.filter((c) => c.active === 1);
+  const teamDue = teamActive.filter((c) => c.nextDueAt <= now);
 
   const lines: string[] = [
-    `<b>Chores · ${escapeHtml(team.name)}</b>`,
+    `<b>Chores</b>`,
     "",
-    `Due: ${due.length} · Active: ${active.length}`,
+    `<b>👤 Yours</b> · ${myDue.length} due · ${mine.length} active`,
   ];
 
-  if (due.length > 0) {
-    lines.push("", "<b>Due now</b>");
-    for (const c of due.slice(0, 8)) {
+  if (myDue.length > 0) {
+    for (const c of myDue.slice(0, 8)) {
+      const teamLabel = c.teamName ? ` · ${escapeHtml(c.teamName)}` : "";
       lines.push(
-        `• ${escapeHtml(c.title)} · ${formatChoreInterval(c.interval, c.intervalDays)}` +
+        `• ${escapeHtml(c.title)}${teamLabel} · ${formatChoreInterval(c.interval, c.intervalDays)}`
+      );
+    }
+  } else if (mine.length === 0) {
+    lines.push("<i>Nothing assigned to you right now.</i>");
+  }
+
+  if (myUpcoming.length > 0 && myDue.length === 0) {
+    lines.push("", "<b>Coming up for you</b>");
+    for (const c of myUpcoming) {
+      const teamLabel = c.teamName ? ` · ${escapeHtml(c.teamName)}` : "";
+      lines.push(
+        `• ${escapeHtml(c.title)}${teamLabel} · next ${formatDue(c.nextDueAt)}`
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    `<b>◉ ${escapeHtml(team.name)}</b> · ${teamDue.length} due · ${teamActive.length} active`
+  );
+  if (teamActive.length === 0) {
+    lines.push("<i>No active team chores yet.</i>");
+  } else if (teamDue.length > 0) {
+    for (const c of teamDue.slice(0, 5)) {
+      lines.push(
+        `• ${escapeHtml(c.title)}` +
           (c.assigneeName ? ` · ${escapeHtml(c.assigneeName)}` : "")
       );
     }
   }
 
-  if (upcoming.length > 0) {
-    lines.push("", "<b>Upcoming</b>");
-    for (const c of upcoming) {
-      lines.push(
-        `• ${escapeHtml(c.title)} · next ${formatDue(c.nextDueAt)}` +
-          ` (${formatChoreInterval(c.interval, c.intervalDays)})`
-      );
-    }
-  }
+  const mineOpen = new URL("/app/chores", MINIAPP_BASE_URL);
+  mineOpen.searchParams.set("view", "mine");
 
-  if (active.length === 0) {
-    lines.push("", "No active chores yet. Open the Mini App to create one.");
-  }
-
-  const openUrl = miniAppContextUrl(MINIAPP_BASE_URL, {
+  const teamOpen = miniAppContextUrl(MINIAPP_BASE_URL, {
     action: "view_chores",
     telegramUserId: from.id,
     teamId: team.id,
@@ -104,7 +131,12 @@ export async function choresCommand(
   });
 
   let keyboard: InlineKeyboardMarkup = {
-    inline_keyboard: [[{ text: "Open Chores", web_app: { url: openUrl } }]],
+    inline_keyboard: [
+      [
+        { text: "👤 My chores", web_app: { url: mineOpen.toString() } },
+        { text: "◉ Team board", web_app: { url: teamOpen } },
+      ],
+    ],
   };
   keyboard = appendSwitchRow(keyboard, "chores", teams.length > 1);
 

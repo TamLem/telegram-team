@@ -87,9 +87,9 @@ To enable browser sign-in:
 
 1. Set `BOT_USERNAME` (same bot that owns `BOT_TOKEN`, no `@`).
 2. In [@BotFather](https://t.me/BotFather), run `/setdomain` and set the domain to your public Mini App host (production domain or Cloudflare tunnel host from `pnpm dev` — not `localhost`).
-3. Open `https://<your-domain>/app` in a browser and use **Log in with Telegram**.
+3. Open `https://<your-domain>/` (landing) or `https://<your-domain>/app` and use **Log in with Telegram** / **Open app**.
 
-Both flows issue the same `ttp_session` cookie. Signed `?ctx=` action links still require the Telegram user id on the link to match the signed-in user.
+`MINIAPP_BASE_URL` is the site origin; product UI is under `/app`. The origin `/` serves a branded landing (not an empty 404). Both auth flows issue the same `ttp_session` cookie. Signed `?ctx=` action links still require the Telegram user id on the link to match the signed-in user.
 
 ---
 
