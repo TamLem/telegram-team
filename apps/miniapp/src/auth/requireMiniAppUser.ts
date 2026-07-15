@@ -448,7 +448,7 @@ export function setupAuthRoutes(app: Hono<any>) {
     }>();
 
     const ctx = body.ctx
-      ? verifySignedMiniAppContext(body.ctx)
+      ? verifySignedMiniAppContext(body.ctx) ?? undefined
       : undefined;
     if (body.ctx && !ctx) {
       return c.json({ error: "Invalid or expired context" }, 403);
@@ -486,7 +486,7 @@ export function setupAuthRoutes(app: Hono<any>) {
     }>();
 
     const ctx = body.ctx
-      ? verifySignedMiniAppContext(body.ctx)
+      ? verifySignedMiniAppContext(body.ctx) ?? undefined
       : undefined;
     if (body.ctx && !ctx) {
       return c.json({ error: "Invalid or expired context" }, 403);
@@ -527,7 +527,7 @@ export function setupAuthRoutes(app: Hono<any>) {
     const returnTo = q.returnTo;
     const ctxToken = q.ctx;
     const ctx = ctxToken
-      ? verifySignedMiniAppContext(ctxToken)
+      ? verifySignedMiniAppContext(ctxToken) ?? undefined
       : undefined;
     if (ctxToken && !ctx) {
       return c.html(
