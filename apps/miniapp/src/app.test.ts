@@ -5,6 +5,9 @@ process.env.BOT_TOKEN = process.env.BOT_TOKEN || "123456:test-token";
 process.env.MINIAPP_CONTEXT_SECRET =
   process.env.MINIAPP_CONTEXT_SECRET || "test-context-secret";
 process.env.BOT_USERNAME = "taskipi_bot";
+// High ceilings so suite traffic on shared "unknown" IP never 429s.
+process.env.MINIAPP_RATE_LIMIT_MAX = "10000";
+process.env.MINIAPP_AUTH_RATE_LIMIT_MAX = "10000";
 
 const { default: app } = await import("./app.js");
 const { createMiniAppSessionCookie, SESSION_COOKIE } = await import(
@@ -21,6 +24,7 @@ test("GET / serves branded landing when unauthenticated", async () => {
   assert.match(body, /href="\/app"/);
   assert.match(body, /taskipi_bot/);
   assert.match(body, /telegram-widget\.js/);
+  assert.equal(response.headers.get("x-content-type-options"), "nosniff");
 });
 
 test("GET / redirects to /app when session cookie is valid", async () => {
@@ -51,4 +55,19 @@ test("GET /health still returns JSON", async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "ok");
+});
+
+test("GET /robots.txt disallows crawlers", async () => {
+  const response = await app.request("/robots.txt");
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(body, /Disallow: \//);
+});
+
+test("scanner probe paths return plain 404", async () => {
+  const response = await app.request("/.env");
+  assert.equal(response.status, 404);
+  assert.equal(await response.text(), "Not Found");
+  assert.equal(response.headers.get("content-type")?.includes("text/plain"), true);
 });

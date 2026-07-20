@@ -154,6 +154,9 @@ The webhook URL is constructed as `${BOT_WEBHOOK_URL}/telegram/webhook`. The bot
 | `BOT_TOKEN` | Telegram bot token (initData + Login Widget validation) | — |
 | `BOT_USERNAME` | Bot username for Login Widget (browser web access); pass into miniapp container | — |
 | `MINIAPP_CONTEXT_SECRET` | Context token HMAC key | — |
+| `MINIAPP_RATE_LIMIT_MAX` | Max requests per IP per window (global; excludes `/health` `/ready`) | `120` |
+| `MINIAPP_AUTH_RATE_LIMIT_MAX` | Max requests per IP per window on `/app/auth*` | `20` |
+| `MINIAPP_RATE_LIMIT_WINDOW_MS` | Rate-limit window length in ms | `60000` |
 
 **Browser web access:**
 

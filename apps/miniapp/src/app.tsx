@@ -19,22 +19,90 @@ import {
   SESSION_COOKIE,
   type AppVariables,
 } from "./auth/requireMiniAppUser.js";
+import { blockProbes, isProbePath } from "./middleware/blockProbes.js";
+import { rateLimit } from "./middleware/rateLimit.js";
 
 const log = createLogger("miniapp");
 const app = new Hono<{ Variables: AppVariables }>();
+
+const rateLimitWindowMs = parsePositiveInt(
+  getEnvOptional("MINIAPP_RATE_LIMIT_WINDOW_MS"),
+  60_000
+);
+const rateLimitMax = parsePositiveInt(
+  getEnvOptional("MINIAPP_RATE_LIMIT_MAX"),
+  120
+);
+const authRateLimitMax = parsePositiveInt(
+  getEnvOptional("MINIAPP_AUTH_RATE_LIMIT_MAX"),
+  20
+);
+
+function parsePositiveInt(
+  raw: string | undefined,
+  fallback: number
+): number {
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+}
+
+function isHealthPath(path: string): boolean {
+  return path === "/health" || path === "/ready";
+}
+
+function isAuthPath(path: string): boolean {
+  return path === "/app/auth" || path.startsWith("/app/auth/");
+}
+
+/** Cheap security headers safe for Telegram WebView (no X-Frame-Options). */
+app.use("*", async (c, next) => {
+  await next();
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("Referrer-Policy", "strict-origin-when-cross-origin");
+  c.header("X-DNS-Prefetch-Control", "off");
+});
+
+// Block scanner paths before rate-limit counters or HTML work.
+app.use("*", blockProbes());
+
+// Global per-IP budget (single replica in-memory).
+app.use(
+  "*",
+  rateLimit({
+    name: "global",
+    max: rateLimitMax,
+    windowMs: rateLimitWindowMs,
+    skip: (c) => isHealthPath(new URL(c.req.url).pathname),
+  })
+);
+
+// Tighter budget on auth endpoints (initData / Login Widget).
+app.use(
+  "*",
+  rateLimit({
+    name: "auth",
+    max: authRateLimitMax,
+    windowMs: rateLimitWindowMs,
+    skip: (c) => !isAuthPath(new URL(c.req.url).pathname),
+  })
+);
 
 app.use("*", (c, next) => {
   const start = Date.now();
   const path = c.req.path;
   const method = c.req.method;
   return next().then(() => {
+    if (isHealthPath(path)) return;
+    const status = c.res.status;
+    // Scanners and missing pages flood logs; keep signal for real traffic.
+    if (status === 404 || status === 429) return;
+    if (isProbePath(path)) return;
     const duration = Date.now() - start;
-    if (path !== "/health" && path !== "/ready") {
-      log.info(`${method} ${path}`, {
-        status: c.res.status,
-        durationMs: duration,
-      });
-    }
+    log.info(`${method} ${path}`, {
+      status,
+      durationMs: duration,
+    });
   });
 });
 
@@ -44,6 +112,14 @@ app.get("/health", (c) => {
 
 app.get("/ready", (c) => {
   return c.json({ status: "ready", timestamp: new Date().toISOString() });
+});
+
+/** Discourage crawlers — product is Telegram Mini App + optional Login Widget. */
+app.get("/robots.txt", (c) => {
+  return c.text("User-agent: *\nDisallow: /\n", 200, {
+    "Content-Type": "text/plain; charset=utf-8",
+    "Cache-Control": "public, max-age=86400",
+  });
 });
 
 /**
@@ -92,6 +168,11 @@ app.route("/app", boardRoutes);
 app.route("/app", teamRoutes);
 
 app.notFound((c) => {
+  const path = c.req.path;
+  // Minimal body for junk paths that slipped past the prefix blocklist.
+  if (isProbePath(path) || path.includes("..")) {
+    return c.text("Not Found", 404);
+  }
   return c.html(renderNotFoundPage(), 404);
 });
 
